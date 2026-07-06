@@ -231,6 +231,84 @@ const spacesData = [
     lat: 22.1415,
     lng: -102.2762,
     mapQuery: "Casa+de+la+Cultura+Pabellon+de+Arteaga+Aguascalientes"
+  },
+  // Municipio: Aguascalientes (Nuevos espacios de la lista de Google Maps)
+  {
+    id: 21,
+    name: "Biblioteca Pública Enrique Fernández Ledesma",
+    address: "Calle Galeana Norte 202, Zona Centro, 20000 Aguascalientes, Ags.",
+    phone: "449 910 2010",
+    type: "Centro Cultural",
+    municipio: "Aguascalientes",
+    lat: 21.8807271,
+    lng: -102.2977607,
+    mapQuery: "Biblioteca+Enrique+Fernandez+Ledesma+Aguascalientes"
+  },
+  {
+    id: 22,
+    name: "Biblioteca Jaime Torres Bodet",
+    address: "Andador Benito Juárez No. 122, Zona Centro, 20000 Aguascalientes, Ags.",
+    phone: "449 910 2010",
+    type: "Centro Cultural",
+    municipio: "Aguascalientes",
+    lat: 21.8823929,
+    lng: -102.2960414,
+    mapQuery: "Biblioteca+Jaime+Torres+Bodet+Aguascalientes"
+  },
+  {
+    id: 23,
+    name: "Biblioteca Pública Central Centenario-Bicentenario",
+    address: "Av. Manuel Gómez Morín S/N, Col. Ferronales, 20180 Aguascalientes, Ags.",
+    phone: "449 910 2645",
+    type: "Centro Cultural",
+    municipio: "Aguascalientes",
+    lat: 21.888821,
+    lng: -102.279617,
+    mapQuery: "Biblioteca+Centenario+Bicentenario+Aguascalientes"
+  },
+  {
+    id: 24,
+    name: "Sala Alternativa",
+    address: "Edén 205, Aguascalientes, Ags.",
+    phone: "449 960 2333",
+    type: "Teatro",
+    municipio: "Aguascalientes",
+    lat: 21.8983049,
+    lng: -102.3178328,
+    mapQuery: "Sala+Alternativa+Cine+Aguascalientes"
+  },
+  {
+    id: 25,
+    name: "Aquelarre, espacio cultural",
+    address: "Calle Francisco G. Hornedo No. 336, Zona Centro, 20000 Aguascalientes, Ags.",
+    phone: "449 190 0616",
+    type: "Centro Cultural",
+    municipio: "Aguascalientes",
+    lat: 21.8800881,
+    lng: -102.2924548,
+    mapQuery: "Aquelarre+espacio+cultural+Aguascalientes"
+  },
+  {
+    id: 26,
+    name: "Cafecheetoh",
+    address: "Talamantes 213, Barrio de San Marcos, 20070 Aguascalientes, Ags.",
+    phone: "No disponible",
+    type: "Centro Cultural",
+    municipio: "Aguascalientes",
+    lat: 21.8804204,
+    lng: -102.305894,
+    mapQuery: "Cafecheetoh+Café+Cultural+Aguascalientes"
+  },
+  {
+    id: 27,
+    name: "Hogar Espejo",
+    address: "Gral. Francisco Villa 245, Zona Centro, 20000 Aguascalientes, Ags.",
+    phone: "No disponible",
+    type: "Centro Cultural",
+    municipio: "Aguascalientes",
+    lat: 21.8898675,
+    lng: -102.2867643,
+    mapQuery: "Hogar+Espejo+Centro+Cultural+Aguascalientes"
   }
 ];
 
