@@ -234,7 +234,19 @@ const spacesData = [
   }
 ];
 
-// --- Load Custom Spaces from LocalStorage ---
+// --- Supabase Client Initialization ---
+const SUPABASE_URL = "https://ebjejctuuhvmjmevabjh.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViamVqY3R1dWh2bWptZXZhYmpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMzg4NDksImV4cCI6MjA5ODkxNDg0OX0.MCVJau8KDz_xV1iwakVW4wpKD_MeMGan3aWY3cGE6g0";
+let supabase = null;
+try {
+  if (window.supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch (err) {
+  console.error("Failed to initialize Supabase client:", err);
+}
+
+// --- Load Custom Spaces from LocalStorage (as offline fallback) ---
 let customSpaces = [];
 try {
   const stored = localStorage.getItem("vendaval_custom_spaces");
@@ -246,6 +258,34 @@ try {
 }
 
 let activeSpacesList = [...spacesData, ...customSpaces];
+
+// --- Supabase Async Fetcher ---
+async function loadSpacesFromSupabase() {
+  if (!supabase) return;
+  try {
+    const { data, error } = await supabase
+      .from("espacios_culturales")
+      .select("*")
+      .order("id", { ascending: true });
+    
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      activeSpacesList = data;
+      // Double check all spaces have mapQuery
+      activeSpacesList.forEach(s => {
+        if (!s.mapQuery) {
+          s.mapQuery = encodeURIComponent(s.name + " " + s.municipio + " Aguascalientes");
+        }
+      });
+      // Refresh user interface
+      updateStatsTargets();
+      filterData();
+    }
+  } catch (err) {
+    console.error("Error loading spaces from Supabase:", err);
+  }
+}
 
 // --- 2. Leaflet Map Initialization ---
 let map;
@@ -702,7 +742,7 @@ if (addSpaceModalOverlay) {
 
 // Form Submission & Auto-saving
 if (addSpaceForm) {
-  addSpaceForm.addEventListener("submit", (e) => {
+  addSpaceForm.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const name = document.getElementById("spaceNameInput").value.trim();
@@ -736,7 +776,6 @@ if (addSpaceForm) {
     const mapQuery = mapQueryInput || encodeURIComponent(name + " " + municipio + " Aguascalientes");
 
     const newSpace = {
-      id: Date.now(),
       name: name,
       address: address,
       phone: phone,
@@ -747,16 +786,38 @@ if (addSpaceForm) {
       mapQuery: mapQuery
     };
 
-    // Save space
-    customSpaces.push(newSpace);
-    try {
-      localStorage.setItem("vendaval_custom_spaces", JSON.stringify(customSpaces));
-    } catch (err) {
-      console.error("Error saving new space to localStorage", err);
+    let savedSpace = null;
+
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from("espacios_culturales")
+          .insert([newSpace])
+          .select();
+        
+        if (error) throw error;
+        if (data && data[0]) {
+          savedSpace = data[0];
+          console.log("Successfully saved to Supabase:", savedSpace);
+        }
+      } catch (err) {
+        console.error("Error saving new space to Supabase:", err);
+      }
     }
 
-    // Refresh memory
-    activeSpacesList = [...spacesData, ...customSpaces];
+    // Fallback to local storage if Supabase is offline or fails
+    if (!savedSpace) {
+      newSpace.id = Date.now();
+      customSpaces.push(newSpace);
+      try {
+        localStorage.setItem("vendaval_custom_spaces", JSON.stringify(customSpaces));
+      } catch (err) {
+        console.error("Error saving new space to localStorage", err);
+      }
+      activeSpacesList = [...spacesData, ...customSpaces];
+    } else {
+      activeSpacesList.push(savedSpace);
+    }
 
     // Reload interface
     updateStatsTargets();
@@ -773,4 +834,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initMap();
   renderDirectory(activeSpacesList);
   startStatsCounter();
+
+  if (supabase) {
+    loadSpacesFromSupabase();
+  }
 });
