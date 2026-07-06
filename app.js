@@ -287,6 +287,71 @@ async function loadSpacesFromSupabase() {
   }
 }
 
+// --- Supabase Realtime Subscription ---
+function subscribeToSpacesRealtime() {
+  if (!supabase) return;
+  try {
+    supabase
+      .channel('public:espacios_culturales')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'espacios_culturales' }, payload => {
+        console.log('Realtime insert received:', payload);
+        const newSpace = payload.new;
+        
+        // Evitar duplicaciones
+        const exists = activeSpacesList.some(s => s.id === newSpace.id);
+        if (!exists) {
+          if (!newSpace.mapQuery) {
+            newSpace.mapQuery = encodeURIComponent(newSpace.name + " " + newSpace.municipio + " Aguascalientes");
+          }
+          activeSpacesList.push(newSpace);
+          updateStatsTargets();
+          filterData();
+          showSyncNotification(newSpace.name);
+        }
+      })
+      .subscribe((status) => {
+        console.log("Supabase Realtime subscription status:", status);
+      });
+  } catch (err) {
+    console.error("Failed to set up Realtime subscription:", err);
+  }
+}
+
+// --- Toast Sincronización Notificación ---
+function showSyncNotification(name) {
+  let container = document.getElementById("toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    container.style.position = "fixed";
+    container.style.bottom = "24px";
+    container.style.right = "24px";
+    container.style.zIndex = "9999";
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.gap = "10px";
+    container.style.pointerEvents = "none";
+    document.body.appendChild(container);
+  }
+  
+  const toast = document.createElement("div");
+  toast.className = "sync-toast";
+  toast.innerHTML = `
+    <div class="sync-toast-icon">🔄</div>
+    <div class="sync-toast-content">
+      <div class="sync-toast-title">¡Espacio Sincronizado!</div>
+      <div class="sync-toast-body"><strong>${name}</strong> se ha añadido al mapa.</div>
+    </div>
+  `;
+  
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.classList.add("fade-out");
+    setTimeout(() => toast.remove(), 400);
+  }, 4500);
+}
+
 // --- 2. Leaflet Map Initialization ---
 let map;
 let markersGroup;
@@ -837,5 +902,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (supabase) {
     loadSpacesFromSupabase();
+    subscribeToSpacesRealtime();
   }
 });
