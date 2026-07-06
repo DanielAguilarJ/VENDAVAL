@@ -315,10 +315,10 @@ const spacesData = [
 // --- Supabase Client Initialization ---
 const SUPABASE_URL = "https://ebjejctuuhvmjmevabjh.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViamVqY3R1dWh2bWptZXZhYmpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMzg4NDksImV4cCI6MjA5ODkxNDg0OX0.MCVJau8KDz_xV1iwakVW4wpKD_MeMGan3aWY3cGE6g0";
-let supabase = null;
+let supabaseClient = null;
 try {
   if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
 } catch (err) {
   console.error("Failed to initialize Supabase client:", err);
@@ -343,9 +343,9 @@ let activeSpacesList = [...spacesData, ...customSpaces];
 
 // --- Supabase Async Fetcher ---
 async function loadSpacesFromSupabase() {
-  if (!supabase) return;
+  if (!supabaseClient) return;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from("espacios_culturales")
       .select("*")
       .order("id", { ascending: true });
@@ -382,9 +382,9 @@ async function loadSpacesFromSupabase() {
 
 // --- Supabase Realtime Subscription ---
 function subscribeToSpacesRealtime() {
-  if (!supabase) return;
+  if (!supabaseClient) return;
   try {
-    supabase
+    supabaseClient
       .channel('public:espacios_culturales')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'espacios_culturales' }, payload => {
         console.log('Realtime insert received:', payload);
@@ -967,9 +967,9 @@ if (addSpaceForm) {
 
     let savedSpace = null;
 
-    if (supabase) {
+    if (supabaseClient) {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from("espacios_culturales")
           .insert([newSpace])
           .select();
@@ -1014,7 +1014,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderDirectory(activeSpacesList);
   startStatsCounter();
 
-  if (supabase) {
+  if (supabaseClient) {
     loadSpacesFromSupabase();
     subscribeToSpacesRealtime();
   }
