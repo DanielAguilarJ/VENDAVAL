@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vendaval | Cultura Climática y Espacios Culturales</title>
+  <meta name="description" content="Portal interactivo de espacios públicos culturales en Aguascalientes. Desarrollado por el colectivo Vendaval en colaboración con el IAJU.">
+  
+  <!-- Preconnect & Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient background glow elements -->
+  <div class="glow-bg">
+    <div class="glow-sphere glow-1"></div>
+    <div class="glow-sphere glow-2"></div>
+    <div class="glow-sphere glow-3"></div>
+  </div>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="#hero" class="nav-logo">
+        <img src="assets/logo.png" alt="Logo Vendaval" class="nav-logo-img">
+        <span class="logo-text">VENDAVAL</span>
+      </a>
+      
+      <div class="nav-links-wrapper">
+        <ul class="nav-links">
+          <li><a href="#hero">Inicio</a></li>
+          <li><a href="#proyectos">Bitácora</a></li>
+          <li><a href="#espacios">Directorio</a></li>
+          <li><a href="#mapa-section">Mapa</a></li>
+          <li><a href="#equipo">Equipo</a></li>
+        </ul>
+      </div>
+
+      <button class="nav-toggle" id="navToggle" aria-label="Menu principal">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero" id="hero">
+    <div class="hero-content-grid">
+      <div class="hero-text-block">
+        <div class="hero-tag">
+          <span class="pulse-dot"></span>
+          Cultura Climática · IAJU
+        </div>
+        <h1 class="hero-title">
+          Redescubre los <br>
+          <span class="text-gradient">Espacios Culturales</span> <br>
+          de Aguascalientes
+        </h1>
+        <p class="hero-description">
+          Cartografía activa de casas de cultura, galerías y centros comunitarios. Un proyecto impulsado por jóvenes agentes de cambio para descentralizar y democratizar el acceso al arte.
+        </p>
+        
+        <div class="hero-buttons">
+          <a href="#espacios" class="btn btn-glow">Ver Espacios</a>
+          <a href="https://www.google.com/maps/@21.8891968,-102.3090246,15z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDYyOS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-secondary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Abrir Google Maps
+          </a>
+        </div>
+        
+        <div class="hero-stats-inline">
+          <div class="stat-inline-box">
+            <div class="stat-inline-num" data-target="20">0</div>
+            <div class="stat-inline-lbl">Espacios</div>
+          </div>
+          <div class="stat-inline-box">
+            <div class="stat-inline-num" data-target="7">0</div>
+            <div class="stat-inline-lbl">Municipios</div>
+          </div>
+          <div class="stat-inline-box">
+            <div class="stat-inline-num" data-target="5">0</div>
+            <div class="stat-inline-lbl">Recintos</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="hero-media-panel">
+        <div class="hero-image-frame">
+          <img src="assets/equipo.jpeg" alt="Colectivo Vendaval IAJU" class="hero-team-img">
+          <div class="hero-image-overlay">
+            <span class="pulse-dot"></span>
+            <span>Colectivo Vendaval IAJU</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <a href="#proyectos" class="hero-scroll" aria-label="Deslizar hacia abajo">
+      <div class="mouse-icon">
+        <span class="mouse-wheel"></span>
+      </div>
+    </a>
+  </header>
+
+  <!-- Projects / Field Log Section -->
+  <section class="proyectos-section" id="proyectos">
+    <div class="container">
+      <div class="section-title-wrapper">
+        <span class="subtitle-badge">Bitácora de Campo</span>
+        <h2 class="section-main-title">Iniciativas del Colectivo</h2>
+        <p class="section-subtitle">Las ideas, acciones y propuestas que construimos día a día en territorio.</p>
+      </div>
+
+      <div class="log-dashboard">
+        <div class="log-sidebar">
+          <button class="log-tab-btn active" data-tab="workshops">
+            <span class="tab-dot border-orange"></span>
+            <div class="tab-label">
+              <strong>Talleres Artísticos de Verano</strong>
+              <span>Proyecto Comunitario Infantil</span>
+            </div>
+          </button>
+          <button class="log-tab-btn" data-tab="music">
+            <span class="tab-dot border-purple"></span>
+            <div class="tab-label">
+              <strong>Rescate de Compositoras</strong>
+              <span>Difusión de Música Clásica</span>
+            </div>
+          </button>
+          <button class="log-tab-btn" data-tab="field">
+            <span class="tab-dot border-blue"></span>
+            <div class="tab-label">
+              <strong>Investigación Sierra Fría</strong>
+              <span>Cultura del Agua e Incidentes</span>
+            </div>
+          </button>
+          <button class="log-tab-btn" data-tab="dental">
+            <span class="tab-dot border-green"></span>
+            <div class="tab-label">
+              <strong>Caravanas de Salud Dental</strong>
+              <span>Enlace en Comunidades</span>
+            </div>
+          </button>
+        </div>
+
+        <div class="log-content-panel">
+          <!-- Workshops Tab -->
+          <div class="log-tab-pane active" id="tab-workshops">
+            <div class="pane-header">
+              <span class="status-indicator">Propuesta Activa</span>
+              <h3>Talleres de Verano en Zonas Vulnerables</h3>
+            </div>
+            <p class="pane-text">
+              Diseñado para mitigar la brecha de actividades ante el adelanto del calendario vacacional. Buscamos llevar talleres prácticos de artes plásticas, escultura e iniciación artística a niñas y niños en comunidades prioritarias de Aguascalientes.
+            </p>
+            <div class="pane-meta-grid">
+              <div class="meta-item">
+                <strong>Impulsado por</strong>
+                <span>Ámbar (Artista Visual) & Luxe Blossom</span>
+              </div>
+              <div class="meta-item">
+                <strong>Población objetivo</strong>
+                <span>Infancias en zonas periféricas</span>
+              </div>
+              <div class="meta-item">
+                <strong>Temporalidad</strong>
+                <span>Junio - Agosto</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Music Tab -->
+          <div class="log-tab-pane" id="tab-music">
+            <div class="pane-header">
+              <span class="status-indicator pilot">Piloto Implementado</span>
+              <h3>Música Clásica y Compositoras Mexicanas</h3>
+            </div>
+            <p class="pane-text">
+              Un proyecto enfocado en la visibilización y rescate de la obra musical creada por mujeres compositoras a nivel nacional e internacional. Incluye breves charlas de apreciación artística e inducción a la historia del arte con enfoque de género.
+            </p>
+            <div class="pane-meta-grid">
+              <div class="meta-item">
+                <strong>Impulsado por</strong>
+                <span>Fani Pianista</span>
+              </div>
+              <div class="meta-item">
+                <strong>Sede piloto</strong>
+                <span>Sala Juventudes (IAJU)</span>
+              </div>
+              <div class="meta-item">
+                <strong>Duración</strong>
+                <span>Sesiones de 20 minutos</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Field Tab -->
+          <div class="log-tab-pane" id="tab-field">
+            <div class="pane-header">
+              <span class="status-indicator field">Trabajo de Campo</span>
+              <h3>Entrevistas y Rally en La Congoja</h3>
+            </div>
+            <p class="pane-text">
+              Investigación cualitativa directamente en territorio para documentar la percepción social, problemáticas de suministro de agua y dinámicas de acceso al recurso en Sierra Fría, además de colaborar en el Rally La Congoja.
+            </p>
+            <div class="pane-meta-grid">
+              <div class="meta-item">
+                <strong>Impulsado por</strong>
+                <span>Joel (Movilización Territorial)</span>
+              </div>
+              <div class="meta-item">
+                <strong>Metodología</strong>
+                <span>Entrevistas estructuradas en sitio</span>
+              </div>
+              <div class="meta-item">
+                <strong>Zona de estudio</strong>
+                <span>La Congoja, Sierra Fría</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dental Tab -->
+          <div class="log-tab-pane" id="tab-dental">
+            <div class="pane-header">
+              <span class="status-indicator health">Salud Comunitaria</span>
+              <h3>Tratamientos y Prevención Dental</h3>
+            </div>
+            <p class="pane-text">
+              Esfuerzo de vinculación y servicio social enfocado en la prevención e higiene dental en comunidades. Campañas informativas y canalización de pacientes para limpiezas, resinas y tratamientos restaurativos básicos.
+            </p>
+            <div class="pane-meta-grid">
+              <div class="meta-item">
+                <strong>Impulsado por</strong>
+                <span>Patricio Hernández (Relaciones Públicas)</span>
+              </div>
+              <div class="meta-item">
+                <strong>Servicios</strong>
+                <span>Diagnóstico, resinas y extracciones</span>
+              </div>
+              <div class="meta-item">
+                <strong>Canal digital</strong>
+                <span>Comunidad "Estudiando al Diente"</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Directory Section -->
+  <section class="espacios-section" id="espacios">
+    <div class="container">
+      <div class="section-title-wrapper text-center">
+        <span class="subtitle-badge">Cartografía Interactiva</span>
+        <h2 class="section-main-title">Directorio de Espacios Culturales</h2>
+        <p class="section-subtitle">Busca y filtra espacios en todo el estado. Haz clic en las tarjetas para localizarlas en el mapa interactivo.</p>
+      </div>
+
+      <!-- Controls Panel (Search and Filters) -->
+      <div class="controls-panel">
+        <div class="search-and-add-row">
+          <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Escribe el nombre del espacio, calle o municipio..." aria-label="Buscar espacio cultural">
+            <button id="clearSearch" class="clear-search-btn" aria-label="Limpiar búsqueda" style="display: none;">&times;</button>
+          </div>
+          <button id="openAddSpaceBtn" class="btn btn-glow">+ Agregar Espacio</button>
+        </div>
+
+        <div class="filters-container">
+          <div class="filter-group">
+            <label class="filter-label">Recinto</label>
+            <div class="chips-row" id="typeChips">
+              <button class="chip active" data-type="all">Todos</button>
+              <button class="chip" data-type="Casa de Cultura">Casas de Cultura</button>
+              <button class="chip" data-type="Teatro">Teatros</button>
+              <button class="chip" data-type="Centro Cultural">Centros Culturales</button>
+              <button class="chip" data-type="Galería de Arte">Galerías</button>
+              <button class="chip" data-type="Centro Comunitario">Centros Comunitarios</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Territorio</label>
+            <div class="chips-row" id="municipioChips">
+              <button class="chip active" data-municipio="all">Todos los Municipios</button>
+              <button class="chip" data-municipio="Aguascalientes">Aguascalientes</button>
+              <button class="chip" data-municipio="San José de Gracia">San José de Gracia</button>
+              <button class="chip" data-municipio="San Francisco de los Romo">S. Francisco de los Romo</button>
+              <button class="chip" data-municipio="Rincón de Romos">Rincón de Romos</button>
+              <button class="chip" data-municipio="Jesús María">Jesús María</button>
+              <button class="chip" data-municipio="Calvillo">Calvillo</button>
+              <button class="chip" data-municipio="Pabellón de Arteaga">Pabellón de Arteaga</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="results-bar">
+        <span class="results-count" id="resultsCount">Cargando espacios...</span>
+      </div>
+
+      <!-- Spaces Cards Grid -->
+      <div class="spaces-grid" id="spacesGrid">
+        <!-- JS Injected Cards -->
+      </div>
+
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState" style="display: none;">
+        <div class="empty-icon">📭</div>
+        <h3>Sin resultados</h3>
+        <p>No encontramos espacios culturales con los filtros seleccionados.</p>
+        <button id="resetFiltersBtn" class="btn btn-secondary btn-sm">Restablecer filtros</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Map Section -->
+  <section class="mapa-section" id="mapa-section">
+    <div class="container">
+      <div class="mapa-layout">
+        <div class="mapa-header-info">
+          <span class="subtitle-badge">Geolocalización</span>
+          <h2 class="section-main-title">Mapa de Distribución</h2>
+          <p class="section-subtitle">Explora de forma visual la infraestructura cultural pública. Haz zoom y haz clic en los pines para ver detalles.</p>
+          
+          <div class="mapa-actions">
+            <a href="https://www.google.com/maps/@21.8891968,-102.3090246,15z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDYyOS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-glow">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              Abrir Mapa Oficial de Google
+            </a>
+          </div>
+
+          <div class="map-legend-panel">
+            <h4>Tipos de Recinto</h4>
+            <ul class="legend-list">
+              <li><span class="legend-dot dot-casa"></span> Casas de Cultura</li>
+              <li><span class="legend-dot dot-teatro"></span> Teatros</li>
+              <li><span class="legend-dot dot-centro"></span> Centros Culturales</li>
+              <li><span class="legend-dot dot-galeria"></span> Galerías de Arte</li>
+              <li><span class="legend-dot dot-comunitario"></span> Centros Comunitarios</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="mapa-container-wrapper">
+          <div id="leafletMap" class="leaflet-map-element"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Team Section -->
+  <section class="equipo-section" id="equipo">
+    <div class="container">
+      <div class="team-intro-layout">
+        <div class="team-photo-frame">
+          <img src="assets/equipo.jpeg" alt="Colectivo Vendaval IAJU" class="team-group-img">
+          <div class="team-photo-caption">
+            <span>Colectivo Vendaval en las oficinas del IAJU, Junio 2026</span>
+          </div>
+        </div>
+        <div class="team-intro-text">
+          <span class="subtitle-badge">Colectivo</span>
+          <h2 class="section-main-title">Conoce a Vendaval</h2>
+          <p class="section-subtitle">
+            Somos un equipo multidisciplinario de jóvenes en Aguascalientes comprometidos con la reactivación cultural y la concientización del agua. En colaboración con el IAJU, desarrollamos este mapeo interactivo de espacios públicos para toda la ciudadanía.
+          </p>
+        </div>
+      </div>
+
+      <div class="team-layout">
+        <!-- Yoalli -->
+        <div class="team-member-card">
+          <div class="member-avatar">YR</div>
+          <h3>Yoalli Ramírez</h3>
+          <span class="member-role">Coordinadora General</span>
+          <p class="member-bio">Enlace principal, seguimiento general y aseguramiento de metas en tiempo.</p>
+        </div>
+
+        <!-- Victoria -->
+        <div class="team-member-card">
+          <div class="member-avatar">VA</div>
+          <h3>Victoria Acevedo</h3>
+          <span class="member-role">Coordinación Operativa</span>
+          <p class="member-bio">Planeación, proyectos, logística de campo y diseño de marca.</p>
+        </div>
+
+        <!-- Patricio -->
+        <div class="team-member-card">
+          <div class="member-avatar">PH</div>
+          <h3>Patricio Hernández</h3>
+          <span class="member-role">Relaciones Públicas</span>
+          <p class="member-bio">Enlace externo, gestión de aliados gubernamentales y empresariales.</p>
+        </div>
+
+        <!-- Daniel -->
+        <div class="team-member-card">
+          <div class="member-avatar">DJ</div>
+          <h3>Daniel Junco</h3>
+          <span class="member-role">Emprendimiento y Talento</span>
+          <p class="member-bio">Coordinación de actividades de desarrollo personal, liderazgo y talento joven.</p>
+        </div>
+
+        <!-- Adriana -->
+        <div class="team-member-card">
+          <div class="member-avatar">AM</div>
+          <h3>Adriana Martínez</h3>
+          <span class="member-role">Administración de Recursos</span>
+          <p class="member-bio">Gestión de recursos asignados, control de inventario y transparencia.</p>
+        </div>
+
+        <!-- Eduardo -->
+        <div class="team-member-card">
+          <div class="member-avatar">EC</div>
+          <h3>Eduardo Castañeda</h3>
+          <span class="member-role">Movilización Territorial</span>
+          <p class="member-bio">Coordinación de participación social y flujo de información en territorio.</p>
+        </div>
+
+        <!-- Estephani -->
+        <div class="team-member-card">
+          <div class="member-avatar">EG</div>
+          <h3>Estephani Gallegos</h3>
+          <span class="member-role">Comunicación Social</span>
+          <p class="member-bio">Diseño de contenidos, coberturas y visibilización de actividades.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="main-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <div class="footer-logo-wrapper">
+            <img src="assets/logo.png" alt="Logo Vendaval" class="footer-logo-img">
+            <span class="footer-logo-text">VENDAVAL</span>
+          </div>
+          <p class="footer-tagline">Organización · Adaptabilidad · Empatía · Transparencia · Amplificación</p>
+        </div>
+        <div class="footer-links">
+          <a href="#hero">Inicio</a>
+          <a href="#proyectos">Bitácora</a>
+          <a href="#espacios">Directorio</a>
+          <a href="#mapa-section">Mapa</a>
+          <a href="#equipo">Equipo</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 Colectivo Vendaval. Impulsado por el Instituto de las Juventudes del Estado de Aguascalientes.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Detail Drawer for Mobile & Desktop -->
+  <div class="drawer-backdrop" id="drawerBackdrop">
+    <div class="drawer" id="spaceDrawer">
+      <button class="drawer-close-btn" id="drawerClose" aria-label="Cerrar detalles">&times;</button>
+      
+      <div class="drawer-header">
+        <span class="space-badge" id="drawerBadge">Casa de la Cultura</span>
+        <h3 class="drawer-title" id="drawerTitle">Instituto Cultural de Aguascalientes</h3>
+      </div>
+      
+      <div class="drawer-body">
+        <div class="drawer-info-block">
+          <div class="info-label">📍 Dirección</div>
+          <div class="info-value" id="drawerAddress">Venustiano Carranza 101, Centro, 20000 Aguascalientes, Ags.</div>
+        </div>
+        
+        <div class="drawer-info-block">
+          <div class="info-label">📞 Teléfono de contacto</div>
+          <div class="info-value" id="drawerPhone">449 910 2010</div>
+        </div>
+        
+        <div class="drawer-info-block">
+          <div class="info-label">🏛️ Adscripción y Municipio</div>
+          <div class="info-value" id="drawerMunicipio">Aguascalientes (Zona Centro)</div>
+        </div>
+      </div>
+      
+      <div class="drawer-footer">
+        <a href="#" target="_blank" rel="noopener" class="btn btn-glow btn-block" id="drawerMapsLink">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Cómo llegar (Google Maps)
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Space Modal -->
+  <div class="modal-overlay" id="addSpaceModalOverlay">
+    <div class="modal-card" id="addSpaceModal">
+      <button class="modal-close-btn" id="closeAddSpaceModal" aria-label="Cerrar">&times;</button>
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar Espacio Cultural</h3>
+        <p class="modal-subtitle">Registra un nuevo espacio público en el directorio y mapa.</p>
+      </div>
+      <form id="addSpaceForm" class="modal-form">
+        <div class="form-group">
+          <label for="spaceNameInput">Nombre del Recinto *</label>
+          <input type="text" id="spaceNameInput" required placeholder="Ej. Casa de la Cultura El Pinar">
+        </div>
+        <div class="form-group">
+          <label for="spaceAddressInput">Dirección Completa *</label>
+          <input type="text" id="spaceAddressInput" required placeholder="Ej. Av. de la Convención 1914 Norte">
+        </div>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label for="spaceTypeInput">Tipo de Recinto *</label>
+            <select id="spaceTypeInput" required>
+              <option value="" disabled selected>Selecciona tipo...</option>
+              <option value="Casa de Cultura">Casa de Cultura</option>
+              <option value="Teatro">Teatro</option>
+              <option value="Centro Cultural">Centro Cultural</option>
+              <option value="Galería de Arte">Galería de Arte</option>
+              <option value="Centro Comunitario">Centro Comunitario</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="spaceMunicipioInput">Municipio *</label>
+            <select id="spaceMunicipioInput" required>
+              <option value="" disabled selected>Selecciona municipio...</option>
+              <option value="Aguascalientes">Aguascalientes</option>
+              <option value="San José de Gracia">San José de Gracia</option>
+              <option value="San Francisco de los Romo">San Francisco de los Romo</option>
+              <option value="Rincón de Romos">Rincón de Romos</option>
+              <option value="Jesús María">Jesús María</option>
+              <option value="Calvillo">Calvillo</option>
+              <option value="Pabellón de Arteaga">Pabellón de Arteaga</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label for="spacePhoneInput">Teléfono de contacto</label>
+            <input type="text" id="spacePhoneInput" placeholder="Ej. 449 123 4567">
+          </div>
+          <div class="form-group">
+            <label for="spaceMapQueryInput">Término de búsqueda (Google Maps)</label>
+            <input type="text" id="spaceMapQueryInput" placeholder="Ej. Casa+Cultura+Pinar+Aguascalientes">
+          </div>
+        </div>
+        <div class="form-note">
+          ℹ️ Las coordenadas geográficas serán calculadas automáticamente según el municipio si se dejan en blanco.
+        </div>
+        <div class="form-group-row" style="margin-top: 10px;">
+          <div class="form-group">
+            <label for="spaceLatInput">Latitud (Opcional)</label>
+            <input type="number" step="any" id="spaceLatInput" placeholder="Ej. 21.882">
+          </div>
+          <div class="form-group">
+            <label for="spaceLngInput">Longitud (Opcional)</label>
+            <input type="number" step="any" id="spaceLngInput" placeholder="Ej. -102.298">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-glow btn-block" style="margin-top: 20px;">Guardar Espacio</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Custom Javascript -->
+  <script src="app.js"></script>
+</body>
+</html>
