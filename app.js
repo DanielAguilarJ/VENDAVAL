@@ -251,7 +251,11 @@ let customSpaces = [];
 try {
   const stored = localStorage.getItem("vendaval_custom_spaces");
   if (stored) {
-    customSpaces = JSON.parse(stored);
+    const parsed = JSON.parse(stored);
+    if (Array.isArray(parsed)) {
+      // Filter out invalid spaces to prevent map crashes
+      customSpaces = parsed.filter(s => s && s.name && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.lng)));
+    }
   }
 } catch (e) {
   console.error("Error reading custom spaces from localStorage", e);
@@ -398,7 +402,10 @@ function plotMapMarkers(spaces) {
     markersGroup.clearLayers();
   }
 
-  spaces.forEach(space => {
+  // Filter out invalid coordinates to prevent Leaflet map crashes
+  const validSpaces = spaces.filter(space => space && !isNaN(parseFloat(space.lat)) && !isNaN(parseFloat(space.lng)));
+
+  validSpaces.forEach(space => {
     const markerHtmlStyles = `
       background-color: ${getMarkerColor(space.type)};
       width: 14px;
@@ -443,7 +450,7 @@ function plotMapMarkers(spaces) {
   });
 
   // Fit bounds if markers exist
-  if (spaces.length > 0 && map) {
+  if (validSpaces.length > 0 && map) {
     map.fitBounds(markersGroup.getBounds(), { padding: [30, 30] });
   }
 }
