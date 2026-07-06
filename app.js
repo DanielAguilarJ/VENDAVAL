@@ -275,16 +275,27 @@ async function loadSpacesFromSupabase() {
     if (error) throw error;
     
     if (data && data.length > 0) {
-      activeSpacesList = data;
-      // Double check all spaces have mapQuery
-      activeSpacesList.forEach(s => {
+      // Merge: keep static spacesData as the base, add Supabase entries that are not duplicates
+      const staticIds = new Set(spacesData.map(s => s.id));
+      const supabaseExtras = data.filter(s => !staticIds.has(s.id));
+      
+      // Ensure all Supabase entries have mapQuery
+      supabaseExtras.forEach(s => {
         if (!s.mapQuery) {
           s.mapQuery = encodeURIComponent(s.name + " " + s.municipio + " Aguascalientes");
         }
       });
+      
+      activeSpacesList = [...spacesData, ...supabaseExtras];
+      
       // Refresh user interface
       updateStatsTargets();
       filterData();
+      
+      // Ensure map tiles render correctly after data load
+      if (map) {
+        setTimeout(() => map.invalidateSize(), 200);
+      }
     }
   } catch (err) {
     console.error("Error loading spaces from Supabase:", err);
@@ -362,26 +373,44 @@ let markersGroup;
 const customMarkers = {};
 
 function initMap() {
-  const mapElement = document.getElementById("leafletMap");
-  if (!mapElement) return;
+  try {
+    const mapElement = document.getElementById("leafletMap");
+    if (!mapElement) {
+      console.error("Map element #leafletMap not found");
+      return;
+    }
 
-  // Centro de Aguascalientes
-  map = L.map("leafletMap", {
-    scrollWheelZoom: false,
-    zoomControl: true
-  }).setView([22.0, -102.3], 9.5);
+    // Check if Leaflet is loaded
+    if (typeof L === 'undefined') {
+      console.error("Leaflet library (L) is not loaded");
+      return;
+    }
 
-  // CartoDB Dark Matter tile layer
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: "abcd",
-    maxZoom: 20
-  }).addTo(map);
+    // Centro de Aguascalientes
+    map = L.map("leafletMap", {
+      scrollWheelZoom: false,
+      zoomControl: true
+    }).setView([22.0, -102.3], 9.5);
 
-  markersGroup = L.featureGroup().addTo(map);
-  
-  // Rellenar marcadores
-  plotMapMarkers(activeSpacesList);
+    // CartoDB Dark Matter tile layer
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: "abcd",
+      maxZoom: 20
+    }).addTo(map);
+
+    markersGroup = L.featureGroup().addTo(map);
+    
+    // Rellenar marcadores
+    plotMapMarkers(activeSpacesList);
+
+    // Force map to recalculate size after initial render
+    setTimeout(() => {
+      if (map) map.invalidateSize();
+    }, 300);
+  } catch (err) {
+    console.error("Error initializing map:", err);
+  }
 }
 
 // Generate map colors by space type

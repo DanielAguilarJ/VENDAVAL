@@ -1038,10 +1038,7 @@ a {
   background: #030712 !important;
 }
 
-/* Custom dark tile layer design */
-.leaflet-tile-container {
-  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%);
-}
+/* Dark tile layer - CartoDB Dark Matter is already dark-themed, no filter needed */
 
 .leaflet-container {
   font-family: var(--font-body) !important;
