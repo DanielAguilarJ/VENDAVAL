@@ -383,21 +383,21 @@ async function loadSpacesFromSupabase() {
       const staticIds = new Set(spacesData.map(s => s.id));
       const supabaseExtras = data.filter(s => !staticIds.has(s.id));
       
-      // Ensure all Supabase entries have mapQuery
+      // Ensure all Supabase entries have mapQuery & comfort normalization
       supabaseExtras.forEach(s => {
         if (!s.mapQuery) {
           s.mapQuery = encodeURIComponent(s.name + " " + s.municipio + " Aguascalientes");
         }
+        normalizeSpaceComfort(s);
       });
       
       activeSpacesList = [...spacesData, ...supabaseExtras];
       
-      // Refresh user interface
+      // Refresh user interface & map layers
       updateStatsTargets();
       filterData();
-      
-      // Ensure map tiles render correctly after data load
       if (map) {
+        switchMapLayer(activeMapLayer);
         setTimeout(() => map.invalidateSize(), 200);
       }
     }
@@ -422,9 +422,11 @@ function subscribeToSpacesRealtime() {
           if (!newSpace.mapQuery) {
             newSpace.mapQuery = encodeURIComponent(newSpace.name + " " + newSpace.municipio + " Aguascalientes");
           }
+          normalizeSpaceComfort(newSpace);
           activeSpacesList.push(newSpace);
           updateStatsTargets();
           filterData();
+          if (map) switchMapLayer(activeMapLayer);
           showSyncNotification(newSpace.name);
         }
       })
@@ -483,6 +485,21 @@ let currentWeatherData = {
 
 let userLocation = null; // { lat, lng }
 
+// Coordenadas centrales reales de los 11 municipios de Aguascalientes
+const MUNICIPIOS_DATA = {
+  "Aguascalientes": { lat: 21.8823, lng: -102.2978, weather: null },
+  "Calvillo": { lat: 21.8464, lng: -102.7187, weather: null },
+  "Jesús María": { lat: 21.9611, lng: -102.3433, weather: null },
+  "Rincón de Romos": { lat: 22.2289, lng: -102.3231, weather: null },
+  "San José de Gracia": { lat: 22.1528, lng: -102.4158, weather: null },
+  "Pabellón de Arteaga": { lat: 22.1414, lng: -102.2764, weather: null },
+  "San Francisco de los Romo": { lat: 22.0733, lng: -102.2703, weather: null },
+  "Asientos": { lat: 22.2386, lng: -102.0889, weather: null },
+  "Cosío": { lat: 22.3650, lng: -102.3000, weather: null },
+  "El Llano": { lat: 21.9181, lng: -101.9647, weather: null },
+  "Tepezalá": { lat: 22.2217, lng: -102.1706, weather: null }
+};
+
 // Fórmula de Haversine para distancia GPS exacta
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371e3; // Metros
@@ -504,11 +521,12 @@ function formatDistance(meters) {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
-// Consulta de API Open-Meteo sin API Key
+// Consulta en lote dinámica de API Open-Meteo para todos los municipios
 async function fetchCurrentWeather(lat = 21.882, lng = -102.298) {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,uv_index&timezone=auto`;
-    const res = await fetch(url);
+    // 1. Clima principal de la ubicación seleccionada/GPS
+    const mainUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,uv_index&timezone=auto`;
+    const res = await fetch(mainUrl);
     if (!res.ok) throw new Error("Status " + res.status);
     const data = await res.json();
 
@@ -525,10 +543,55 @@ async function fetchCurrentWeather(lat = 21.882, lng = -102.298) {
       updateWeatherUI();
       updateComfortRecommendation();
     }
+
+    // 2. Consulta multizona para los municipios de Aguascalientes
+    await fetchMunicipiosWeather();
   } catch (err) {
-    console.warn("Uso de datos clima por defecto:", err);
+    console.warn("Uso de datos clima locales por defecto:", err);
     updateWeatherUI();
     updateComfortRecommendation();
+  }
+}
+
+async function fetchMunicipiosWeather() {
+  const keys = Object.keys(MUNICIPIOS_DATA);
+  const lats = keys.map(k => MUNICIPIOS_DATA[k].lat).join(",");
+  const lngs = keys.map(k => MUNICIPIOS_DATA[k].lng).join(",");
+
+  try {
+    const multiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,uv_index&timezone=auto`;
+    const res = await fetch(multiUrl);
+    if (!res.ok) throw new Error("Multi weather status " + res.status);
+    const data = await res.json();
+
+    const dataArray = Array.isArray(data) ? data : [data];
+    dataArray.forEach((item, index) => {
+      const name = keys[index];
+      if (item && item.current && name) {
+        const cur = item.current;
+        MUNICIPIOS_DATA[name].weather = {
+          temp: Math.round(cur.temperature_2m),
+          feelsLike: Math.round(cur.apparent_temperature),
+          humidity: Math.round(cur.relative_humidity_2m),
+          uv: cur.uv_index !== undefined ? Number(cur.uv_index).toFixed(1) : "6.0",
+          wind: Math.round(cur.wind_speed_10m)
+        };
+      }
+    });
+  } catch (err) {
+    console.warn("Fallback dinámico para microclima municipal:", err);
+    keys.forEach(name => {
+      const baseTemp = currentWeatherData.temp;
+      // Variación microclimática natural estimada por micro-altitud regional
+      const diff = name === 'Calvillo' ? 2 : (name === 'San José de Gracia' ? -2 : (name === 'Cosío' ? -1 : 0));
+      MUNICIPIOS_DATA[name].weather = {
+        temp: baseTemp + diff,
+        feelsLike: currentWeatherData.feelsLike + diff,
+        humidity: currentWeatherData.humidity,
+        uv: currentWeatherData.uv,
+        wind: currentWeatherData.wind
+      };
+    });
   }
 }
 
@@ -554,6 +617,7 @@ function updateComfortRecommendation(preferredService = null) {
   const userLng = userLocation ? userLocation.lng : -102.298;
 
   const spacesWithDist = activeSpacesList.map(s => {
+    normalizeSpaceComfort(s);
     const distMeters = calculateDistance(userLat, userLng, s.lat, s.lng);
     return { ...s, distMeters };
   }).sort((a, b) => a.distMeters - b.distMeters);
@@ -568,7 +632,7 @@ function updateComfortRecommendation(preferredService = null) {
   if (preferredService === 'water') {
     bestMatch = spacesWithDist.find(s => s.hasWater) || spacesWithDist[0];
     titleText = `💧 Punto de Agua Gratis más Cercano a ${formatDistance(bestMatch.distMeters)}`;
-    descText = `Te recomendamos acudir a <strong>${bestMatch.name}</strong> (${bestMatch.address}). Cuenta con bebederos de agua potable abierta al público.`;
+    descText = `Te recomendamos acudir a <strong>${bestMatch.name}</strong> (${bestMatch.address}). ${bestMatch.waterType || "Cuenta con bebedero de agua potable gratuita abierta al público."}`;
   } else if (preferredService === 'shade' || temp >= 27) {
     bestMatch = spacesWithDist.find(s => s.hasAC || s.shadeLevel === 'Alta') || spacesWithDist[0];
     titleText = temp >= 27 
@@ -711,134 +775,179 @@ function switchMapLayer(layerName) {
   if (layerName === 'spaces') {
     markersGroup.addTo(map);
   } else if (layerName === 'heat') {
-    if (!heatLayerGroup) buildHeatmapLayer();
+    buildHeatmapLayer();
     heatLayerGroup.addTo(map);
   } else if (layerName === 'water') {
-    if (!waterLayerGroup) buildWaterMapLayer();
+    buildWaterMapLayer();
     waterLayerGroup.addTo(map);
   } else if (layerName === 'weather') {
-    if (!weatherLayerGroup) buildWeatherMapLayer();
+    buildWeatherMapLayer();
     weatherLayerGroup.addTo(map);
   }
 }
 
+// Mapa de Calor dinámico derivado de activeSpacesList y datos térmicos reales
 function buildHeatmapLayer() {
-  if (typeof L.heatLayer === 'function') {
-    const points = activeSpacesList.map(s => [s.lat, s.lng, s.heatIntensity || 0.8]);
-    points.push([21.882, -102.298, 0.95]);
-    points.push([21.860, -102.290, 0.85]);
-    points.push([21.961, -102.343, 0.65]);
+  if (heatLayerGroup && map) {
+    map.removeLayer(heatLayerGroup);
+  }
 
-    heatLayerGroup = L.heatLayer(points, {
-      radius: 35,
-      blur: 20,
+  // Puntos dinámicos basados en todos los espacios reales de activeSpacesList
+  const dynamicHeatPoints = activeSpacesList.map(s => {
+    normalizeSpaceComfort(s);
+    // Coeficiente dinámico de radiación térmica
+    const shadeFactor = s.shadeLevel === 'Alta' ? 0.4 : (s.shadeLevel === 'Media' ? 0.75 : 0.95);
+    const tempFactor = (currentWeatherData.temp || 26) / 35;
+    const intensity = Math.min(Math.max(shadeFactor * tempFactor, 0.3), 1.0);
+    return [s.lat, s.lng, intensity];
+  });
+
+  if (typeof L.heatLayer === 'function') {
+    heatLayerGroup = L.heatLayer(dynamicHeatPoints, {
+      radius: 38,
+      blur: 22,
       maxZoom: 17,
-      gradient: { 0.2: '#3b82f6', 0.5: '#eab308', 0.8: '#f97316', 1.0: '#ef4444' }
+      gradient: { 0.2: '#3b82f6', 0.5: '#eab308', 0.75: '#f97316', 1.0: '#ef4444' }
     });
   } else {
     heatLayerGroup = L.featureGroup();
     activeSpacesList.forEach(s => {
+      normalizeSpaceComfort(s);
+      const intensity = s.shadeLevel === 'Alta' ? 'Baja (Zona fresca)' : 'Alta (Isla de calor)';
       const circle = L.circle([s.lat, s.lng], {
-        color: '#ef4444',
-        fillColor: '#f97316',
-        fillOpacity: 0.5,
-        radius: 400
-      }).bindPopup(`<b>🌡️ Punto Térmico</b><br>${s.name}<br>Intensidad de calor estimada: ${Math.round((s.heatIntensity || 0.8) * 40)}°C.`);
+        color: s.shadeLevel === 'Alta' ? '#10b981' : '#ef4444',
+        fillColor: s.shadeLevel === 'Alta' ? '#34d399' : '#f97316',
+        fillOpacity: 0.45,
+        radius: 350
+      }).bindPopup(`
+        <div style="text-align:center;">
+          <h4 style="color:#f97316;">🌡️ Zona Térmica Urbana</h4>
+          <strong>${s.name}</strong> (${s.municipio})
+          <p style="font-size:0.8rem; margin-top:4px;">Carga Térmica: <strong>${intensity}</strong></p>
+          <a href="#" class="leaflet-popup-link" onclick="window.showSpaceDetailsById(${s.id}); return false;">
+            Ver Ficha Completa
+          </a>
+        </div>
+      `);
       heatLayerGroup.addLayer(circle);
     });
   }
 }
 
+// Mapa de Agua Potable dinámico derivado de activeSpacesList
 function buildWaterMapLayer() {
+  if (waterLayerGroup && map) {
+    map.removeLayer(waterLayerGroup);
+  }
+
   waterLayerGroup = L.featureGroup();
-  const waterSpaces = activeSpacesList.filter(s => s.hasWater);
+  const waterSpaces = activeSpacesList.map(s => normalizeSpaceComfort(s)).filter(s => s.hasWater);
 
   waterSpaces.forEach(space => {
     const waterHtml = `
       <span style="
         background-color: #0284c7;
         color: #ffffff;
-        width: 24px;
-        height: 24px;
+        width: 26px;
+        height: 26px;
         display: flex;
         align-items: center;
         justify-content: center;
         border-radius: 50%;
         border: 2px solid #ffffff;
-        box-shadow: 0 0 12px #38bdf8;
-        font-size: 13px;
+        box-shadow: 0 0 14px #38bdf8;
+        font-size: 14px;
+        cursor: pointer;
       ">💧</span>
     `;
 
     const icon = L.divIcon({
       className: "water-div-icon",
-      iconAnchor: [12, 12],
-      popupAnchor: [0, -12],
+      iconAnchor: [13, 13],
+      popupAnchor: [0, -13],
       html: waterHtml
     });
 
     const marker = L.marker([space.lat, space.lng], { icon: icon });
     marker.bindPopup(`
-      <div style="text-align:center;">
+      <div style="text-align:center; min-width:180px;">
         <h4 style="color:#38bdf8; margin-bottom:4px;">💧 Punto de Agua Potable Gratis</h4>
-        <strong>${space.name}</strong>
-        <p style="font-size:0.8rem; margin-top:4px;">${space.address}</p>
-        <div style="background:rgba(56,189,248,0.1); padding:6px; border-radius:6px; font-size:0.75rem; color:#bae6fd; margin-top:6px;">
-          Bebedero / Dispensador Gratuito
+        <strong style="font-size:0.95rem;">${space.name}</strong>
+        <p style="font-size:0.8rem; color:#94a3b8; margin-top:4px;">${space.address}</p>
+        <div style="background:rgba(56,189,248,0.12); padding:6px 10px; border-radius:6px; font-size:0.78rem; color:#bae6fd; margin:8px 0;">
+          ${space.waterType || "Bebedero / Dispensador Gratuito"}
         </div>
+        <a href="#" class="leaflet-popup-link" onclick="window.showSpaceDetailsById(${space.id}); return false;">
+          Ver Ficha Completa
+        </a>
       </div>
     `);
     waterLayerGroup.addLayer(marker);
   });
 }
 
+// Mapa Climático dinámico con datos multi-municipio de Open-Meteo
 function buildWeatherMapLayer() {
+  if (weatherLayerGroup && map) {
+    map.removeLayer(weatherLayerGroup);
+  }
+
   weatherLayerGroup = L.featureGroup();
-  const municipiosMap = {};
 
-  activeSpacesList.forEach(space => {
-    if (!municipiosMap[space.municipio]) {
-      municipiosMap[space.municipio] = { lat: space.lat, lng: space.lng, name: space.municipio };
-    }
-  });
+  Object.keys(MUNICIPIOS_DATA).forEach(muniName => {
+    const info = MUNICIPIOS_DATA[muniName];
+    const w = info.weather || {
+      temp: currentWeatherData.temp,
+      feelsLike: currentWeatherData.feelsLike,
+      humidity: currentWeatherData.humidity,
+      uv: currentWeatherData.uv,
+      wind: currentWeatherData.wind
+    };
 
-  Object.values(municipiosMap).forEach(muni => {
-    const temp = currentWeatherData.temp + (muni.name === 'Calvillo' ? 2 : (muni.name === 'San José de Gracia' ? -2 : 0));
     const weatherHtml = `
       <div style="
-        background: rgba(15, 23, 42, 0.9);
+        background: rgba(15, 23, 42, 0.92);
         border: 1px solid #00f2fe;
         color: #ffffff;
-        padding: 4px 10px;
+        padding: 5px 12px;
         border-radius: 50px;
         font-size: 11px;
         font-weight: 700;
-        box-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+        box-shadow: 0 0 12px rgba(0, 242, 254, 0.5);
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
         white-space: nowrap;
+        cursor: pointer;
       ">
         <span>🌤️</span>
-        <span>${muni.name}: ${temp}°C</span>
+        <span>${muniName}: ${w.temp}°C</span>
       </div>
     `;
 
     const icon = L.divIcon({
       className: "weather-div-icon",
-      iconAnchor: [40, 12],
-      popupAnchor: [0, -12],
+      iconAnchor: [45, 14],
+      popupAnchor: [0, -14],
       html: weatherHtml
     });
 
-    const marker = L.marker([muni.lat, muni.lng], { icon: icon });
+    const spacesInMuni = activeSpacesList.filter(s => s.municipio === muniName).length;
+
+    const marker = L.marker([info.lat, info.lng], { icon: icon });
     marker.bindPopup(`
-      <div style="text-align:center;">
-        <h4 style="color:#00f2fe;">🌤️ Estación Climática ${muni.name}</h4>
-        <p><strong>Temperatura:</strong> ${temp} °C</p>
-        <p><strong>Sensación Térmica:</strong> ${currentWeatherData.feelsLike} °C</p>
-        <p><strong>Índice UV:</strong> ${currentWeatherData.uv}</p>
-        <p><strong>Viento:</strong> ${currentWeatherData.wind} km/h</p>
+      <div style="text-align:center; min-width:200px;">
+        <h4 style="color:#00f2fe; margin-bottom:6px;">🌤️ Estación Climática ${muniName}</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:0.8rem; text-align:left; background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; margin-bottom:8px;">
+          <div>🌡️ Temp: <strong>${w.temp}°C</strong></div>
+          <div>🔥 Sensación: <strong>${w.feelsLike}°C</strong></div>
+          <div>💧 Humedad: <strong>${w.humidity}%</strong></div>
+          <div>☀️ UV: <strong>${w.uv}</strong></div>
+        </div>
+        <p style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px;">${spacesInMuni} recintos registrados en este municipio.</p>
+        <button class="btn btn-outline" style="padding:4px 10px; font-size:0.75rem; width:100%;" onclick="window.filterByMunicipio('${muniName}')">
+          Filtrar Recintos de ${muniName}
+        </button>
       </div>
     `);
     weatherLayerGroup.addLayer(marker);
@@ -1180,6 +1289,15 @@ window.showSpaceDetailsById = function(id) {
   }
 };
 
+window.filterByMunicipio = function(muniName) {
+  activeFilters.municipio = muniName;
+  const municipioChips = document.querySelectorAll("#municipioChips .chip");
+  municipioChips.forEach(c => c.classList.toggle("active", c.getAttribute("data-municipio") === muniName));
+  filterData();
+  const dirSec = document.getElementById("espacios");
+  if (dirSec) dirSec.scrollIntoView({ behavior: "smooth" });
+};
+
 
 
 // --- 6. Mobile Navigation Drawer ---
@@ -1388,9 +1506,10 @@ if (addSpaceForm) {
       activeSpacesList.push(savedSpace);
     }
 
-    // Reload interface
+    // Reload interface & update map layers
     updateStatsTargets();
     filterData();
+    if (map) switchMapLayer(activeMapLayer);
 
     // Close
     closeAddSpaceModalFunc();
