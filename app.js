@@ -15,7 +15,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8804,
     lng: -102.2965,
-    mapQuery: "Instituto+Cultural+de+Aguascalientes"
+    mapQuery: "Instituto+Cultural+de+Aguascalientes",
+    hasWater: true,
+    waterType: "Bebederos públicos de agua potable filtrada en patio central",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Patio colonial arbolado con sombra densa, vegetación y bebederos de agua fresca."
   },
   {
     id: 2,
@@ -26,7 +31,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8845,
     lng: -102.2818,
-    mapQuery: "Centro+Cultural+Los+Arquitos+Aguascalientes"
+    mapQuery: "Centro+Cultural+Los+Arquitos+Aguascalientes",
+    hasWater: true,
+    waterType: "Bebederos públicos e hidrantes en corredores",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Antiguos baños térmicos con frondosos jardines, fuentes de agua y sombra arbolada."
   },
   {
     id: 3,
@@ -37,7 +47,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8827,
     lng: -102.2974,
-    mapQuery: "Casa+Teran+Aguascalientes"
+    mapQuery: "Casa+Teran+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua fría en patio principal",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Casona histórica sombreada con librería, cafetería y dispensador de agua potable."
   },
   {
     id: 4,
@@ -48,7 +63,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8828,
     lng: -102.2975,
-    mapQuery: "Centro+Cultural+Angel+Aguascalientes"
+    mapQuery: "Centro+Cultural+Angel+Aguascalientes",
+    hasWater: true,
+    waterType: "Garrafón de agua potable para visitantes",
+    hasAC: true,
+    shadeLevel: "Media",
+    climateComfort: "Instalaciones de muros gruesos protegidas del sol con aire acondicionado."
   },
   {
     id: 5,
@@ -59,7 +79,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8805,
     lng: -102.2970,
-    mapQuery: "Centro+de+Artes+Visuales+Aguascalientes"
+    mapQuery: "Centro+de+Artes+Visuales+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua en área de talleres",
+    hasAC: true,
+    shadeLevel: "Media",
+    climateComfort: "Galerías climatizadas y talleres protegidos del calor directo."
   },
   {
     id: 6,
@@ -70,7 +95,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8831,
     lng: -102.2928,
-    mapQuery: "Artefacto+Espacio+Experimental+Aguascalientes"
+    mapQuery: "Artefacto+Espacio+Experimental+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua para asistentes",
+    hasAC: false,
+    shadeLevel: "Media",
+    climateComfort: "Foro independiente con ventilación cruzada y refresco de agua."
   },
   {
     id: 7,
@@ -81,7 +111,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8833,
     lng: -102.2920,
-    mapQuery: "Casa+Refugio+Reyes+Aguascalientes"
+    mapQuery: "Casa+Refugio+Reyes+Aguascalientes",
+    hasWater: true,
+    waterType: "Bebedero en patio interior",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Casona de cantera diseñada por Refugio Reyes con patio sombreado y fresco."
   },
   {
     id: 8,
@@ -92,7 +127,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8833,
     lng: -102.2950,
-    mapQuery: "Galeria+de+Arte+El+Obraje+Aguascalientes"
+    mapQuery: "Galeria+de+Arte+El+Obraje+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua purificada",
+    hasAC: true,
+    shadeLevel: "Media",
+    climateComfort: "Galería con aire acondicionado y resguardo térmico en el centro."
   },
   {
     id: 9,
@@ -103,7 +143,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8806,
     lng: -102.2961,
-    mapQuery: "Teatro+Morelos+Aguascalientes"
+    mapQuery: "Teatro+Morelos+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensadores de agua potable en vestíbulo",
+    hasAC: true,
+    shadeLevel: "Media",
+    climateComfort: "Teatro histórico con aire acondicionado central (HVAC) en todas las salas."
   },
   {
     id: 10,
@@ -114,7 +159,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8804,
     lng: -102.2964,
-    mapQuery: "Teatro+Antonio+Leal+y+Romero+Aguascalientes"
+    mapQuery: "Teatro+Antonio+Leal+y+Romero+Aguascalientes",
+    hasWater: true,
+    waterType: "Acceso a bebederos del complejo cultural",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Sala de teatro completamente climatizada y aislada del sol directo."
   },
   {
     id: 11,
@@ -125,7 +175,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8804,
     lng: -102.2965,
-    mapQuery: "Galeria+Benjamin+Manzo+Aguascalientes"
+    mapQuery: "Galeria+Benjamin+Manzo+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua en sala",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Galería interior con control de clima y sombra del claustro."
   },
   {
     id: 12,
@@ -136,7 +191,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8601,
     lng: -102.2905,
-    mapQuery: "Teatro+Aguascalientes"
+    mapQuery: "Teatro+Aguascalientes",
+    hasWater: true,
+    waterType: "Estaciones de hidratación en lobby principal",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Recinto de gran escala con climatización central integral y amplia explanada sombreada."
   },
   {
     id: 13,
@@ -147,7 +207,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8745,
     lng: -102.2910,
-    mapQuery: "Centro+CRECER+Obraje+Aguascalientes"
+    mapQuery: "Centro+CRECER+Obraje+Aguascalientes",
+    hasWater: true,
+    waterType: "Bebedero público comunitario",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Centro social comunal con patio arbolado y toma de agua potable."
   },
   // Municipio: San José de Gracia
   {
@@ -159,7 +224,12 @@ const spacesData = [
     municipio: "San José de Gracia",
     lat: 22.1506,
     lng: -102.4158,
-    mapQuery: "Casa+de+la+Cultura+San+Jose+de+Gracia+Aguascalientes"
+    mapQuery: "Casa+de+la+Cultura+San+Jose+de+Gracia+Aguascalientes",
+    hasWater: true,
+    waterType: "Bebedero escolar y público",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Patio sombreado cerca de la presa con brisa natural y agua fresca."
   },
   {
     id: 15,
@@ -170,7 +240,12 @@ const spacesData = [
     municipio: "San José de Gracia",
     lat: 22.1520,
     lng: -102.4160,
-    mapQuery: "Casa+del+Peregrino+San+Jose+de+Gracia+Aguascalientes"
+    mapQuery: "Casa+del+Peregrino+San+Jose+de+Gracia+Aguascalientes",
+    hasWater: true,
+    waterType: "Toma de agua potable para peregrinos",
+    hasAC: false,
+    shadeLevel: "Media",
+    climateComfort: "Refugio techado para visitantes del Cristo Redentor."
   },
   // Municipio: San Francisco de los Romo
   {
@@ -182,7 +257,12 @@ const spacesData = [
     municipio: "San Francisco de los Romo",
     lat: 22.0738,
     lng: -102.2710,
-    mapQuery: "Casa+de+Cultura+San+Francisco+de+los+Romo"
+    mapQuery: "Casa+de+Cultura+San+Francisco+de+los+Romo",
+    hasWater: true,
+    waterType: "Bebedero de agua purificada",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Espacio cultural con áreas verdes y punto de agua potable."
   },
   // Municipio: Rincón de Romos
   {
@@ -194,7 +274,12 @@ const spacesData = [
     municipio: "Rincón de Romos",
     lat: 22.2289,
     lng: -102.3241,
-    mapQuery: "Casa+de+la+Cultura+Rincon+de+Romos"
+    mapQuery: "Casa+de+la+Cultura+Rincon+de+Romos",
+    hasWater: true,
+    waterType: "Dispensador de agua fría en recepción",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Patio histórico con sombra de frondosos árboles y bebedero."
   },
   // Municipio: Jesús María
   {
@@ -206,7 +291,12 @@ const spacesData = [
     municipio: "Jesús María",
     lat: 21.9612,
     lng: -102.3435,
-    mapQuery: "Casa+de+la+Cultura+Jesus+Maria+Aguascalientes"
+    mapQuery: "Casa+de+la+Cultura+Jesus+Maria+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua para estudiantes y visitantes",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Aulas climatizadas y patio sombreado en la zona centro de Jesús María."
   },
   // Municipio: Calvillo
   {
@@ -218,7 +308,12 @@ const spacesData = [
     municipio: "Calvillo",
     lat: 21.8465,
     lng: -102.7188,
-    mapQuery: "Casa+de+Cultura+Calvillo+Aguascalientes"
+    mapQuery: "Casa+de+Cultura+Calvillo+Aguascalientes",
+    hasWater: true,
+    waterType: "Bebedero de agua fresca en patio",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Casona colonial sombreada en Calvillo con fuente y agua fresca."
   },
   // Municipio: Pabellón de Arteaga
   {
@@ -230,7 +325,12 @@ const spacesData = [
     municipio: "Pabellón de Arteaga",
     lat: 22.1415,
     lng: -102.2762,
-    mapQuery: "Casa+de+la+Cultura+Pabellon+de+Arteaga+Aguascalientes"
+    mapQuery: "Casa+de+la+Cultura+Pabellon+de+Arteaga+Aguascalientes",
+    hasWater: true,
+    waterType: "Bebedero de agua potable",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Patio con vegetación, bebedero y sombra constante."
   },
   // Municipio: Aguascalientes (Nuevos espacios de la lista de Google Maps)
   {
@@ -242,7 +342,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8807271,
     lng: -102.2977607,
-    mapQuery: "Biblioteca+Enrique+Fernandez+Ledesma+Aguascalientes"
+    mapQuery: "Biblioteca+Enrique+Fernandez+Ledesma+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua fría para lectores",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Salas de lectura climatizadas frente al Jardín de San Marcos."
   },
   {
     id: 22,
@@ -253,7 +358,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8823929,
     lng: -102.2960414,
-    mapQuery: "Biblioteca+Jaime+Torres+Bodet+Aguascalientes"
+    mapQuery: "Biblioteca+Jaime+Torres+Bodet+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua purificada en entrada",
+    hasAC: true,
+    shadeLevel: "Media",
+    climateComfort: "Ambiente climatizado silencioso con punto de hidratación en andador Juárez."
   },
   {
     id: 23,
@@ -264,7 +374,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.888821,
     lng: -102.279617,
-    mapQuery: "Biblioteca+Centenario+Bicentenario+Aguascalientes"
+    mapQuery: "Biblioteca+Centenario+Bicentenario+Aguascalientes",
+    hasWater: true,
+    waterType: "Estaciones de hidratación con filtro de carbono",
+    hasAC: true,
+    shadeLevel: "Alta",
+    climateComfort: "Moderna biblioteca automatizada con climatización integral y agua purificada."
   },
   {
     id: 24,
@@ -275,7 +390,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8983049,
     lng: -102.3178328,
-    mapQuery: "Sala+Alternativa+Cine+Aguascalientes"
+    mapQuery: "Sala+Alternativa+Cine+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua en ambigú",
+    hasAC: true,
+    shadeLevel: "Media",
+    climateComfort: "Sala de proyección y teatro climatizada con confort térmico interior."
   },
   {
     id: 25,
@@ -286,7 +406,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8800881,
     lng: -102.2924548,
-    mapQuery: "Aquelarre+espacio+cultural+Aguascalientes"
+    mapQuery: "Aquelarre+espacio+cultural+Aguascalientes",
+    hasWater: true,
+    waterType: "Garrafón de agua filtrada de libre acceso",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Foro independiente con patio sombreado e hidratación gratuita."
   },
   {
     id: 26,
@@ -297,7 +422,12 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8804204,
     lng: -102.305894,
-    mapQuery: "Cafecheetoh+Café+Cultural+Aguascalientes"
+    mapQuery: "Cafecheetoh+Café+Cultural+Aguascalientes",
+    hasWater: true,
+    waterType: "Vaso de agua potable purificada de cortesía",
+    hasAC: false,
+    shadeLevel: "Media",
+    climateComfort: "Café cultural arbolado en San Marcos con agua de cortesía para clientes y transeúntes."
   },
   {
     id: 27,
@@ -308,15 +438,23 @@ const spacesData = [
     municipio: "Aguascalientes",
     lat: 21.8898675,
     lng: -102.2867643,
-    mapQuery: "Hogar+Espejo+Centro+Cultural+Aguascalientes"
+    mapQuery: "Hogar+Espejo+Centro+Cultural+Aguascalientes",
+    hasWater: true,
+    waterType: "Dispensador de agua purificada ambiental",
+    hasAC: false,
+    shadeLevel: "Alta",
+    climateComfort: "Jardín sombreado comunitario con libre acceso a agua fresca."
   }
 ];
 
-// Helper para atributos de confort e hidratación por espacio
+// Helper para atributos de confort e hidratación por espacio (respeta datos explícitos reales)
 function normalizeSpaceComfort(space) {
   if (!space) return space;
   if (space.hasWater === undefined) {
     space.hasWater = true;
+  }
+  if (!space.waterType) {
+    space.waterType = space.hasWater ? "Bebedero / Dispensador de Agua Potable" : "Sin punto público de agua";
   }
   if (space.hasAC === undefined) {
     space.hasAC = ["Teatro", "Galería de Arte", "Centro Cultural"].includes(space.type);
@@ -326,11 +464,8 @@ function normalizeSpaceComfort(space) {
   }
   if (!space.climateComfort) {
     space.climateComfort = space.hasWater 
-      ? (space.hasAC ? "Punto de agua potable gratis y aire acondicionado." : "Acceso libre a bebedero de agua potable y sombra natural.")
+      ? (space.hasAC ? "Punto de agua potable gratis y aire acondicionado." : "Acceso libre a agua potable y sombra natural.")
       : "Espacio techado adecuado para resguardo contra clima severo.";
-  }
-  if (space.heatIntensity === undefined) {
-    space.heatIntensity = space.municipio === "Aguascalientes" ? 0.8 : 0.5;
   }
   return space;
 }
