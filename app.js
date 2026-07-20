@@ -615,10 +615,14 @@ let currentWeatherData = {
   humidity: 40,
   uv: "7.2",
   wind: 12,
-  description: "Cálido agradable"
+  description: "Cálido agradable",
+  muniName: "Aguascalientes"
 };
 
 let userLocation = null; // { lat, lng }
+let activeHeatMode = 'island'; // 'island' vs 'shade'
+let activeWaterSubfilter = 'all'; // 'all', 'bebedero', 'fria', 'garrafon'
+let waterRoutePolyline = null;
 
 // Coordenadas centrales reales de los 11 municipios de Aguascalientes
 const MUNICIPIOS_DATA = {
@@ -656,10 +660,23 @@ function formatDistance(meters) {
   return `${(meters / 1000).toFixed(1)} km`;
 }
 
+// Clasificador del Índice UV
+function getUVCategory(uvValue) {
+  const val = parseFloat(uvValue) || 0;
+  if (val < 3.0) {
+    return { tag: "Bajo", class: "uv-low", tip: "Bajo riesgo solar." };
+  } else if (val < 6.0) {
+    return { tag: "Moderado", class: "uv-mod", tip: "Usa gafas y bloqueador." };
+  } else if (val < 8.0) {
+    return { tag: "Alto", class: "uv-high", tip: "Busca sombra y agua." };
+  } else {
+    return { tag: "Extremo", class: "uv-extreme", tip: "Protección solar obligatoria." };
+  }
+}
+
 // Consulta en lote dinámica de API Open-Meteo para todos los municipios
-async function fetchCurrentWeather(lat = 21.882, lng = -102.298) {
+async function fetchCurrentWeather(lat = 21.882, lng = -102.298, muniName = "Aguascalientes") {
   try {
-    // 1. Clima principal de la ubicación seleccionada/GPS
     const mainUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,uv_index&timezone=auto`;
     const res = await fetch(mainUrl);
     if (!res.ok) throw new Error("Status " + res.status);
@@ -673,16 +690,17 @@ async function fetchCurrentWeather(lat = 21.882, lng = -102.298) {
         humidity: Math.round(c.relative_humidity_2m),
         uv: c.uv_index !== undefined ? Number(c.uv_index).toFixed(1) : "6.5",
         wind: Math.round(c.wind_speed_10m),
-        description: c.temperature_2m > 28 ? "Caluroso" : (c.temperature_2m < 15 ? "Fresco" : "Templado")
+        description: c.temperature_2m > 28 ? "Caluroso" : (c.temperature_2m < 15 ? "Fresco" : "Templado"),
+        muniName: muniName
       };
       updateWeatherUI();
       updateComfortRecommendation();
     }
 
-    // 2. Consulta multizona para los municipios de Aguascalientes
     await fetchMunicipiosWeather();
   } catch (err) {
     console.warn("Uso de datos clima locales por defecto:", err);
+    currentWeatherData.muniName = muniName;
     updateWeatherUI();
     updateComfortRecommendation();
   }
@@ -717,7 +735,6 @@ async function fetchMunicipiosWeather() {
     console.warn("Fallback dinámico para microclima municipal:", err);
     keys.forEach(name => {
       const baseTemp = currentWeatherData.temp;
-      // Variación microclimática natural estimada por micro-altitud regional
       const diff = name === 'Calvillo' ? 2 : (name === 'San José de Gracia' ? -2 : (name === 'Cosío' ? -1 : 0));
       MUNICIPIOS_DATA[name].weather = {
         temp: baseTemp + diff,
@@ -732,14 +749,33 @@ async function fetchMunicipiosWeather() {
 
 function updateWeatherUI() {
   const tempEl = document.getElementById("weatherTemp");
+  const feelsEl = document.getElementById("weatherFeels");
   const humEl = document.getElementById("weatherHumidity");
+  const humDescEl = document.getElementById("weatherHumidityDesc");
   const uvEl = document.getElementById("weatherUV");
+  const uvBadgeEl = document.getElementById("weatherUVBadge");
   const windEl = document.getElementById("weatherWind");
+  const airQualityEl = document.getElementById("weatherAirQuality");
 
   if (tempEl) tempEl.textContent = `${currentWeatherData.temp} °C`;
+  if (feelsEl) feelsEl.textContent = `Sensación: ${currentWeatherData.feelsLike} °C`;
+  
   if (humEl) humEl.textContent = `${currentWeatherData.humidity} %`;
+  if (humDescEl) {
+    const hum = currentWeatherData.humidity;
+    humDescEl.textContent = hum < 30 ? "Ambiente Seco" : (hum > 65 ? "Ambiente Húmedo" : "Confort Agradable");
+  }
+
   if (uvEl) uvEl.textContent = currentWeatherData.uv;
+  if (uvBadgeEl) {
+    const cat = getUVCategory(currentWeatherData.uv);
+    uvBadgeEl.innerHTML = `<span class="uv-tag ${cat.class}">${cat.tag}</span>`;
+  }
+
   if (windEl) windEl.textContent = `${currentWeatherData.wind} km/h`;
+  if (airQualityEl) {
+    airQualityEl.textContent = currentWeatherData.wind > 20 ? "Viento Moderado" : "Aire Limpio & Fresco";
+  }
 }
 
 function updateComfortRecommendation(preferredService = null) {
@@ -900,6 +936,15 @@ function switchMapLayer(layerName) {
   const chips = document.querySelectorAll(".layer-chip");
   chips.forEach(c => c.classList.toggle("active", c.getAttribute("data-layer") === layerName));
 
+  // Toggle floating overlay panels
+  const heatOverlay = document.getElementById("heatOverlayPanel");
+  const waterOverlay = document.getElementById("waterOverlayPanel");
+  const weatherOverlay = document.getElementById("weatherOverlayPanel");
+
+  if (heatOverlay) heatOverlay.style.display = layerName === 'heat' ? 'block' : 'none';
+  if (waterOverlay) waterOverlay.style.display = layerName === 'water' ? 'block' : 'none';
+  if (weatherOverlay) weatherOverlay.style.display = layerName === 'weather' ? 'block' : 'none';
+
   if (!map) return;
 
   if (markersGroup) map.removeLayer(markersGroup);
@@ -921,104 +966,230 @@ function switchMapLayer(layerName) {
   }
 }
 
-// Mapa de Calor dinámico derivado de activeSpacesList y datos térmicos reales
+// Mapa de Calor dinámico con modos 'Isla de Calor' vs 'Confort & Sombra'
 function buildHeatmapLayer() {
   if (heatLayerGroup && map) {
     map.removeLayer(heatLayerGroup);
   }
 
-  // Puntos dinámicos basados en todos los espacios reales de activeSpacesList
-  const dynamicHeatPoints = activeSpacesList.map(s => {
-    normalizeSpaceComfort(s);
-    // Coeficiente dinámico de radiación térmica
-    const shadeFactor = s.shadeLevel === 'Alta' ? 0.4 : (s.shadeLevel === 'Media' ? 0.75 : 0.95);
-    const tempFactor = (currentWeatherData.temp || 26) / 35;
-    const intensity = Math.min(Math.max(shadeFactor * tempFactor, 0.3), 1.0);
-    return [s.lat, s.lng, intensity];
-  });
+  heatLayerGroup = L.featureGroup();
 
-  if (typeof L.heatLayer === 'function') {
-    heatLayerGroup = L.heatLayer(dynamicHeatPoints, {
-      radius: 38,
-      blur: 22,
-      maxZoom: 17,
-      gradient: { 0.2: '#3b82f6', 0.5: '#eab308', 0.75: '#f97316', 1.0: '#ef4444' }
-    });
-  } else {
-    heatLayerGroup = L.featureGroup();
-    activeSpacesList.forEach(s => {
-      normalizeSpaceComfort(s);
-      const intensity = s.shadeLevel === 'Alta' ? 'Baja (Zona fresca)' : 'Alta (Isla de calor)';
-      const circle = L.circle([s.lat, s.lng], {
-        color: s.shadeLevel === 'Alta' ? '#10b981' : '#ef4444',
-        fillColor: s.shadeLevel === 'Alta' ? '#34d399' : '#f97316',
-        fillOpacity: 0.45,
-        radius: 350
-      }).bindPopup(`
-        <div style="text-align:center;">
-          <h4 style="color:#f97316;">🌡️ Zona Térmica Urbana</h4>
-          <strong>${s.name}</strong> (${s.municipio})
-          <p style="font-size:0.8rem; margin-top:4px;">Carga Térmica: <strong>${intensity}</strong></p>
-          <a href="#" class="leaflet-popup-link" onclick="window.showSpaceDetailsById(${s.id}); return false;">
-            Ver Ficha Completa
-          </a>
-        </div>
-      `);
-      heatLayerGroup.addLayer(circle);
-    });
+  const isShadeMode = activeHeatMode === 'shade';
+  const badgeEl = document.getElementById("heatModeBadge");
+  if (badgeEl) {
+    badgeEl.textContent = isShadeMode ? "🌳 Cobertura de Sombra" : "🔥 Isla de Calor Urbano";
   }
+
+  // Visualización con círculos térmicos informativos para máxima interactividad
+  activeSpacesList.forEach(s => {
+    normalizeSpaceComfort(s);
+    
+    // Cálculo térmico dinámico en el punto exacto
+    const tempBase = (MUNICIPIOS_DATA[s.municipio]?.weather?.temp) || currentWeatherData.temp || 26;
+    const shadeOffset = s.shadeLevel === 'Alta' ? -3.5 : (s.shadeLevel === 'Media' ? -1.0 : +2.5);
+    const acOffset = s.hasAC ? -1.5 : 0;
+    const spotTemp = Math.round((tempBase + shadeOffset + acOffset) * 10) / 10;
+    
+    let color = "#3b82f6";
+    let fillColor = "#60a5fa";
+    let statusLabel = "Zona Fresca / Refugio";
+
+    if (spotTemp >= 30) {
+      color = "#ef4444";
+      fillColor = "#f87171";
+      statusLabel = "Isla de Calor Intenso";
+    } else if (spotTemp >= 26) {
+      color = "#f97316";
+      fillColor = "#fb923c";
+      statusLabel = "Temperatura Elevada";
+    } else if (spotTemp >= 21) {
+      color = "#10b981";
+      fillColor = "#34d399";
+      statusLabel = "Confort Térmico Óptimo";
+    }
+
+    if (isShadeMode) {
+      // Invertir colores para priorizar zonas con mayor frescura y árboles
+      if (s.shadeLevel === 'Alta') {
+        color = "#00f2fe";
+        fillColor = "#38bdf8";
+        statusLabel = "Alta Sombra & Frescor";
+      } else {
+        color = "#64748b";
+        fillColor = "#94a3b8";
+        statusLabel = "Sombra Parcial";
+      }
+    }
+
+    const circle = L.circle([s.lat, s.lng], {
+      color: color,
+      fillColor: fillColor,
+      fillOpacity: 0.45,
+      radius: isShadeMode ? (s.shadeLevel === 'Alta' ? 450 : 250) : 380
+    });
+
+    circle.bindPopup(`
+      <div style="text-align:center; min-width:190px;">
+        <div style="background:${color}; color:#fff; font-size:0.75rem; font-weight:700; padding:3px 8px; border-radius:50px; display:inline-block; margin-bottom:6px;">
+          ${statusLabel}
+        </div>
+        <h4 style="margin-bottom:4px;">${s.name}</h4>
+        <p style="font-size:0.8rem; color:#cbd5e1; margin-bottom:6px;">${s.address}</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.78rem; background:rgba(255,255,255,0.06); padding:6px; border-radius:6px; margin-bottom:8px; text-align:left;">
+          <div>🌡️ Temp en sitio: <strong>${spotTemp}°C</strong></div>
+          <div>🌳 Sombra: <strong>${s.shadeLevel}</strong></div>
+          <div>❄️ Climatización: <strong>${s.hasAC ? 'Sí (A/C)' : 'Natural'}</strong></div>
+          <div>💧 Agua Gratis: <strong>${s.hasWater ? 'Sí' : 'No'}</strong></div>
+        </div>
+        <a href="#" class="leaflet-popup-link" onclick="window.showSpaceDetailsById(${s.id}); return false;">
+          Ver Ficha Completa
+        </a>
+      </div>
+    `);
+
+    heatLayerGroup.addLayer(circle);
+  });
 }
 
-// Mapa de Agua Potable dinámico derivado de activeSpacesList
+// Mapa de Agua Potable dinámico con sub-filtros e iconos pulsantes
 function buildWaterMapLayer() {
   if (waterLayerGroup && map) {
     map.removeLayer(waterLayerGroup);
   }
 
   waterLayerGroup = L.featureGroup();
-  const waterSpaces = activeSpacesList.map(s => normalizeSpaceComfort(s)).filter(s => s.hasWater);
+  
+  let waterSpaces = activeSpacesList.map(s => normalizeSpaceComfort(s)).filter(s => s.hasWater);
+
+  // Aplicar sub-filtro de agua
+  if (activeWaterSubfilter === 'bebedero') {
+    waterSpaces = waterSpaces.filter(s => s.waterType.toLowerCase().includes('bebedero') || s.waterType.toLowerCase().includes('toma'));
+  } else if (activeWaterSubfilter === 'fria') {
+    waterSpaces = waterSpaces.filter(s => s.waterType.toLowerCase().includes('fría') || s.waterType.toLowerCase().includes('filtrad'));
+  } else if (activeWaterSubfilter === 'garrafon') {
+    waterSpaces = waterSpaces.filter(s => s.waterType.toLowerCase().includes('garraf') || s.waterType.toLowerCase().includes('dispensador'));
+  }
+
+  const countBadge = document.getElementById("waterStatsCount");
+  if (countBadge) countBadge.textContent = `${waterSpaces.length} Puntos`;
 
   waterSpaces.forEach(space => {
+    let iconEmoji = "💧";
+    let iconBg = "#0284c7";
+    let glowColor = "#38bdf8";
+
+    if (space.waterType.toLowerCase().includes('bebedero')) {
+      iconEmoji = "🚰";
+      iconBg = "#0284c7";
+    } else if (space.waterType.toLowerCase().includes('fría') || space.waterType.toLowerCase().includes('filtrad')) {
+      iconEmoji = "🧊";
+      iconBg = "#2563eb";
+      glowColor = "#60a5fa";
+    } else if (space.waterType.toLowerCase().includes('garraf')) {
+      iconEmoji = "💧";
+      iconBg = "#059669";
+      glowColor = "#34d399";
+    }
+
     const waterHtml = `
-      <span style="
-        background-color: #0284c7;
+      <span class="water-pulse-icon" style="
+        background-color: ${iconBg};
         color: #ffffff;
-        width: 26px;
-        height: 26px;
+        width: 28px;
+        height: 28px;
         display: flex;
         align-items: center;
         justify-content: center;
         border-radius: 50%;
         border: 2px solid #ffffff;
-        box-shadow: 0 0 14px #38bdf8;
+        box-shadow: 0 0 14px ${glowColor};
         font-size: 14px;
         cursor: pointer;
-      ">💧</span>
+      ">${iconEmoji}</span>
     `;
 
     const icon = L.divIcon({
       className: "water-div-icon",
-      iconAnchor: [13, 13],
-      popupAnchor: [0, -13],
+      iconAnchor: [14, 14],
+      popupAnchor: [0, -14],
       html: waterHtml
     });
 
+    const userLat = userLocation ? userLocation.lat : 21.882;
+    const userLng = userLocation ? userLocation.lng : -102.298;
+    const distMeters = calculateDistance(userLat, userLng, space.lat, space.lng);
+
     const marker = L.marker([space.lat, space.lng], { icon: icon });
     marker.bindPopup(`
-      <div style="text-align:center; min-width:180px;">
-        <h4 style="color:#38bdf8; margin-bottom:4px;">💧 Punto de Agua Potable Gratis</h4>
-        <strong style="font-size:0.95rem;">${space.name}</strong>
-        <p style="font-size:0.8rem; color:#94a3b8; margin-top:4px;">${space.address}</p>
-        <div style="background:rgba(56,189,248,0.12); padding:6px 10px; border-radius:6px; font-size:0.78rem; color:#bae6fd; margin:8px 0;">
+      <div style="text-align:center; min-width:200px;">
+        <div style="color:#38bdf8; font-size:0.75rem; font-weight:700; text-transform:uppercase; margin-bottom:4px;">
+          ${iconEmoji} Punto de Hidratación Gratuita
+        </div>
+        <strong style="font-size:0.95rem; display:block;">${space.name}</strong>
+        <p style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">${space.address}</p>
+        <div style="background:rgba(56,189,248,0.12); padding:6px 10px; border-radius:6px; font-size:0.78rem; color:#bae6fd; margin:8px 0; border:1px solid rgba(56,189,248,0.25);">
           ${space.waterType || "Bebedero / Dispensador Gratuito"}
         </div>
-        <a href="#" class="leaflet-popup-link" onclick="window.showSpaceDetailsById(${space.id}); return false;">
-          Ver Ficha Completa
-        </a>
+        <div style="font-size:0.75rem; color:#cbd5e1; margin-bottom:8px;">
+          📍 Distancia aproximada: <strong>${formatDistance(distMeters)}</strong>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-secondary btn-sm" style="flex:1; font-size:0.72rem; padding:4px 8px;" onclick="window.traceRouteToWaterSpace(${space.id})">
+            🚶‍♂️ Trazar Ruta
+          </button>
+          <button class="btn btn-glow btn-sm" style="flex:1; font-size:0.72rem; padding:4px 8px;" onclick="window.showSpaceDetailsById(${space.id})">
+            Ficha
+          </button>
+        </div>
       </div>
     `);
     waterLayerGroup.addLayer(marker);
   });
+}
+
+// Trazar ruta visual al punto de agua potable más cercano
+window.traceRouteToWaterSpace = function(spaceId) {
+  const space = activeSpacesList.find(s => s.id === spaceId);
+  if (!space || !map) return;
+
+  const userLat = userLocation ? userLocation.lat : 21.882;
+  const userLng = userLocation ? userLocation.lng : -102.298;
+
+  if (waterRoutePolyline) {
+    map.removeLayer(waterRoutePolyline);
+  }
+
+  const latlngs = [
+    [userLat, userLng],
+    [space.lat, space.lng]
+  ];
+
+  waterRoutePolyline = L.polyline(latlngs, {
+    color: '#00f2fe',
+    weight: 4,
+    opacity: 0.85,
+    dashArray: '8, 12'
+  }).addTo(map);
+
+  const bounds = L.latLngBounds(latlngs);
+  map.fitBounds(bounds, { padding: [60, 60] });
+};
+
+// Función para encontrar automáticamente el punto de agua más cercano y trazar la ruta
+function findNearestWaterPoints() {
+  const userLat = userLocation ? userLocation.lat : 21.882;
+  const userLng = userLocation ? userLocation.lng : -102.298;
+
+  const waterSpaces = activeSpacesList.filter(s => s.hasWater).map(s => {
+    const dist = calculateDistance(userLat, userLng, s.lat, s.lng);
+    return { ...s, dist };
+  }).sort((a, b) => a.dist - b.dist);
+
+  if (waterSpaces.length > 0) {
+    const closest = waterSpaces[0];
+    switchMapLayer('water');
+    window.traceRouteToWaterSpace(closest.id);
+  }
 }
 
 // Mapa Climático dinámico con datos multi-municipio de Open-Meteo
@@ -1080,7 +1251,7 @@ function buildWeatherMapLayer() {
           <div>☀️ UV: <strong>${w.uv}</strong></div>
         </div>
         <p style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px;">${spacesInMuni} recintos registrados en este municipio.</p>
-        <button class="btn btn-outline" style="padding:4px 10px; font-size:0.75rem; width:100%;" onclick="window.filterByMunicipio('${muniName}')">
+        <button class="btn btn-glow btn-sm" style="padding:4px 10px; font-size:0.75rem; width:100%;" onclick="window.filterByMunicipio('${muniName}')">
           Filtrar Recintos de ${muniName}
         </button>
       </div>
@@ -1688,6 +1859,61 @@ document.addEventListener("DOMContentLoaded", () => {
       updateComfortRecommendation('warm');
       switchMapLayer('weather');
       document.getElementById("mapa-section")?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  // Bind Municipality Weather Chips
+  const muniChips = document.querySelectorAll("#muniWeatherChips .muni-chip");
+  muniChips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      muniChips.forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      const muni = chip.getAttribute("data-muni");
+      const coords = MUNICIPIOS_DATA[muni];
+      if (coords) {
+        fetchCurrentWeather(coords.lat, coords.lng, muni);
+        if (map) {
+          map.setView([coords.lat, coords.lng], 12);
+        }
+      }
+    });
+  });
+
+  // Bind Heat Map Overlay Mode Controls
+  const btnHeatModeIsland = document.getElementById("btnHeatModeIsland");
+  const btnHeatModeShade = document.getElementById("btnHeatModeShade");
+  if (btnHeatModeIsland && btnHeatModeShade) {
+    btnHeatModeIsland.addEventListener("click", () => {
+      activeHeatMode = 'island';
+      btnHeatModeIsland.classList.add("active");
+      btnHeatModeShade.classList.remove("active");
+      if (activeMapLayer === 'heat') buildHeatmapLayer();
+    });
+
+    btnHeatModeShade.addEventListener("click", () => {
+      activeHeatMode = 'shade';
+      btnHeatModeShade.classList.add("active");
+      btnHeatModeIsland.classList.remove("active");
+      if (activeMapLayer === 'heat') buildHeatmapLayer();
+    });
+  }
+
+  // Bind Water Subfilters
+  const waterSubchips = document.querySelectorAll("#waterSubfilters .water-chip");
+  waterSubchips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      waterSubchips.forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      activeWaterSubfilter = chip.getAttribute("data-watersub");
+      if (activeMapLayer === 'water') buildWaterMapLayer();
+    });
+  });
+
+  // Bind Nearest Water Route Button
+  const btnFindNearestWater = document.getElementById("btnFindNearestWater");
+  if (btnFindNearestWater) {
+    btnFindNearestWater.addEventListener("click", () => {
+      findNearestWaterPoints();
     });
   }
 

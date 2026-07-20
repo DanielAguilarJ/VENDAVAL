@@ -111,19 +111,38 @@
   </header>
 
   <!-- Asistente Climático & Recomendaciones GPS Section -->
+  <!-- Asistente Climático & Recomendaciones GPS Section -->
   <section class="clima-section" id="clima-asistente">
     <div class="container">
       <div class="clima-card-hero">
         <div class="clima-header">
           <div class="clima-title-block">
-            <span class="subtitle-badge badge-clima">🌱 Confort Ambientaly Salud</span>
-            <h2 class="clima-main-title">Asistente Climático GPS</h2>
-            <p class="clima-subtitle">Monitoreo en tiempo real de temperatura, humedad y puntos de agua para tu comodidad en Aguascalientes.</p>
+            <span class="subtitle-badge badge-clima">🌱 Confort Ambiental y Salud</span>
+            <h2 class="clima-main-title">Asistente Climático & GPS</h2>
+            <p class="clima-subtitle">Monitoreo en tiempo real de microclimas, temperatura, índice UV y red de hidratación gratuita en Aguascalientes.</p>
           </div>
           <button id="gpsLocateBtn" class="btn btn-glow btn-gps">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/></svg>
             📍 Activar mi Ubicación GPS
           </button>
+        </div>
+
+        <!-- Municipality Weather Selector -->
+        <div class="muni-weather-bar">
+          <span class="muni-weather-label">📍 Estación Municipal:</span>
+          <div class="muni-chips-row" id="muniWeatherChips">
+            <button class="muni-chip active" data-muni="Aguascalientes">Aguascalientes</button>
+            <button class="muni-chip" data-muni="Calvillo">Calvillo</button>
+            <button class="muni-chip" data-muni="Jesús María">Jesús María</button>
+            <button class="muni-chip" data-muni="Rincón de Romos">Rincón de Romos</button>
+            <button class="muni-chip" data-muni="San José de Gracia">San José de Gracia</button>
+            <button class="muni-chip" data-muni="Pabellón de Arteaga">Pabellón de Arteaga</button>
+            <button class="muni-chip" data-muni="San Francisco de los Romo">S. Fco. de los Romo</button>
+            <button class="muni-chip" data-muni="Asientos">Asientos</button>
+            <button class="muni-chip" data-muni="Cosío">Cosío</button>
+            <button class="muni-chip" data-muni="El Llano">El Llano</button>
+            <button class="muni-chip" data-muni="Tepezalá">Tepezalá</button>
+          </div>
         </div>
 
         <div class="clima-stats-grid">
@@ -132,6 +151,7 @@
             <div>
               <div class="clima-stat-val" id="weatherTemp">-- °C</div>
               <div class="clima-stat-lbl">Temperatura Actual</div>
+              <div class="clima-stat-sub" id="weatherFeels">Sensación: -- °C</div>
             </div>
           </div>
 
@@ -139,7 +159,8 @@
             <span class="clima-stat-icon">💧</span>
             <div>
               <div class="clima-stat-val" id="weatherHumidity">-- %</div>
-              <div class="clima-stat-lbl">Humedad / Precip.</div>
+              <div class="clima-stat-lbl">Humedad / Confort</div>
+              <div class="clima-stat-sub" id="weatherHumidityDesc">Agradable</div>
             </div>
           </div>
 
@@ -147,7 +168,8 @@
             <span class="clima-stat-icon">☀️</span>
             <div>
               <div class="clima-stat-val" id="weatherUV">--</div>
-              <div class="clima-stat-lbl">Índice UV</div>
+              <div class="clima-stat-lbl">Índice UV Solar</div>
+              <div class="clima-stat-sub" id="weatherUVBadge"><span class="uv-tag uv-mod">Moderado</span></div>
             </div>
           </div>
 
@@ -155,7 +177,8 @@
             <span class="clima-stat-icon">💨</span>
             <div>
               <div class="clima-stat-val" id="weatherWind">-- km/h</div>
-              <div class="clima-stat-lbl">Viento</div>
+              <div class="clima-stat-lbl">Viento & Aire</div>
+              <div class="clima-stat-sub" id="weatherAirQuality">Aire Limpio</div>
             </div>
           </div>
         </div>
@@ -291,6 +314,54 @@
             <button class="layer-chip" data-layer="water">💧 Mapa de Agua</button>
             <button class="layer-chip" data-layer="weather">🌤️ Clima Actual</button>
           </div>
+
+          <!-- Floating Layer Overlays -->
+          <!-- Heat Overlay -->
+          <div class="map-floating-overlay" id="heatOverlayPanel" style="display: none;">
+            <div class="overlay-header">
+              <span class="overlay-title">🌡️ Control Térmico e Isla de Calor</span>
+              <span class="overlay-badge" id="heatModeBadge">Microclima Urbano</span>
+            </div>
+            <div class="thermal-scale-bar">
+              <div class="scale-segment seg-cool"><span>&lt;20°C</span> Fresco</div>
+              <div class="scale-segment seg-comfort"><span>20-25°C</span> Confort</div>
+              <div class="scale-segment seg-warm"><span>26-30°C</span> Cálido</div>
+              <div class="scale-segment seg-hot"><span>&gt;30°C</span> Isla Calor</div>
+            </div>
+            <div class="overlay-controls">
+              <button class="overlay-btn active" id="btnHeatModeIsland">🔥 Isla de Calor</button>
+              <button class="overlay-btn" id="btnHeatModeShade">🌳 Confort & Sombra</button>
+            </div>
+          </div>
+
+          <!-- Water Overlay -->
+          <div class="map-floating-overlay" id="waterOverlayPanel" style="display: none;">
+            <div class="overlay-header">
+              <span class="overlay-title">💧 Red de Hidratación Gratuita</span>
+              <span class="overlay-badge" id="waterStatsCount">27 Puntos</span>
+            </div>
+            <div class="water-subfilters" id="waterSubfilters">
+              <button class="water-chip active" data-watersub="all">Todos</button>
+              <button class="water-chip" data-watersub="bebedero">🚰 Bebederos</button>
+              <button class="water-chip" data-watersub="fria">🧊 Agua Fría</button>
+              <button class="water-chip" data-watersub="garrafon">💧 Garrafones</button>
+            </div>
+            <button class="btn btn-secondary btn-sm btn-block" id="btnFindNearestWater" style="margin-top: 8px;">
+              📍 Ruta al Punto de Agua más Cercano
+            </button>
+          </div>
+
+          <!-- Weather Overlay -->
+          <div class="map-floating-overlay" id="weatherOverlayPanel" style="display: none;">
+            <div class="overlay-header">
+              <span class="overlay-title">🌤️ Estaciones Meteorológicas</span>
+              <span class="overlay-badge">11 Municipios</span>
+            </div>
+            <div class="overlay-info-text">
+              Haz clic en cualquier insignia 🌤️ para ver el pronóstico en vivo y filtrar los recintos de ese municipio.
+            </div>
+          </div>
+
           <div id="leafletMap" class="leaflet-map-element"></div>
         </div>
       </div>

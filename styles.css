@@ -2292,4 +2292,274 @@ a {
   .switcher-label {
     display: none;
   }
+  .map-floating-overlay {
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+  .muni-weather-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
+
+/* ==========================================================================
+   MICROCLIMATE SELECTOR BAR & ENHANCED WEATHER BADGES
+   ========================================================================== */
+.muni-weather-bar {
+  margin-top: 18px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  padding: 10px 16px;
+  border-radius: var(--border-radius-md);
+  backdrop-filter: blur(8px);
+}
+
+.muni-weather-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+}
+
+.muni-chips-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.muni-chips-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.muni-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-gray-light);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 50px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition-smooth);
+}
+
+.muni-chip:hover {
+  background: rgba(0, 242, 254, 0.12);
+  color: #fff;
+  border-color: rgba(0, 242, 254, 0.3);
+}
+
+.muni-chip.active {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+  color: #000;
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.35);
+}
+
+/* Weather Stats Sub-labels & UV Badges */
+.clima-stat-sub {
+  font-size: 0.72rem;
+  color: var(--text-gray-medium);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.uv-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 50px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.uv-low {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.uv-mod {
+  background: rgba(234, 179, 8, 0.2);
+  color: #facc15;
+  border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.uv-high {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fb923c;
+  border: 1px solid rgba(249, 115, 22, 0.4);
+}
+
+.uv-extreme {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* ==========================================================================
+   FLOATING MAP OVERLAY PANELS
+   ========================================================================== */
+.map-floating-overlay {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  z-index: 999;
+  background: rgba(3, 7, 18, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius-md);
+  padding: 14px 18px;
+  width: 320px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  animation: slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.overlay-title {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.overlay-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(0, 242, 254, 0.12);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  padding: 2px 8px;
+  border-radius: 50px;
+}
+
+/* Thermal Scale Bar */
+.thermal-scale-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: 26px;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.scale-segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.seg-cool { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+.seg-comfort { background: linear-gradient(90deg, #10b981, #84cc16); }
+.seg-warm { background: linear-gradient(90deg, #eab308, #f97316); }
+.seg-hot { background: linear-gradient(90deg, #f97316, #ef4444); }
+
+.overlay-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.overlay-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-gray-light);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 6px;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.overlay-btn.active {
+  background: rgba(0, 242, 254, 0.2);
+  color: #fff;
+  border-color: var(--accent-cyan);
+}
+
+/* Water Subfilters */
+.water-subfilters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.water-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-gray-light);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.water-chip:hover {
+  background: rgba(56, 189, 248, 0.15);
+  color: #bae6fd;
+}
+
+.water-chip.active {
+  background: #0284c7;
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.overlay-info-text {
+  font-size: 0.78rem;
+  color: var(--text-gray-light);
+  line-height: 1.4;
+}
+
+/* Map Div Icon Custom Animation */
+.water-pulse-icon {
+  animation: waterGlowPulse 2s infinite alternate;
+}
+
+@keyframes waterGlowPulse {
+  0% { transform: scale(1); box-shadow: 0 0 10px #38bdf8; }
+  100% { transform: scale(1.15); box-shadow: 0 0 22px #0284c7; }
+}
+
