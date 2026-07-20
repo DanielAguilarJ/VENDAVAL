@@ -36,7 +36,7 @@
       <div class="nav-links-wrapper">
         <ul class="nav-links">
           <li><a href="#hero">Inicio</a></li>
-          
+          <li><a href="#clima-asistente">Clima & GPS</a></li>
           <li><a href="#espacios">Directorio</a></li>
           <li><a href="#mapa-section">Mapa</a></li>
           <li><a href="#equipo">Equipo</a></li>
@@ -110,6 +110,71 @@
     </a>
   </header>
 
+  <!-- Asistente Climático & Recomendaciones GPS Section -->
+  <section class="clima-section" id="clima-asistente">
+    <div class="container">
+      <div class="clima-card-hero">
+        <div class="clima-header">
+          <div class="clima-title-block">
+            <span class="subtitle-badge badge-clima">🌱 Confort Ambientaly Salud</span>
+            <h2 class="clima-main-title">Asistente Climático GPS</h2>
+            <p class="clima-subtitle">Monitoreo en tiempo real de temperatura, humedad y puntos de agua para tu comodidad en Aguascalientes.</p>
+          </div>
+          <button id="gpsLocateBtn" class="btn btn-glow btn-gps">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/></svg>
+            📍 Activar mi Ubicación GPS
+          </button>
+        </div>
+
+        <div class="clima-stats-grid">
+          <div class="clima-stat-box">
+            <span class="clima-stat-icon">🌡️</span>
+            <div>
+              <div class="clima-stat-val" id="weatherTemp">-- °C</div>
+              <div class="clima-stat-lbl">Temperatura Actual</div>
+            </div>
+          </div>
+
+          <div class="clima-stat-box">
+            <span class="clima-stat-icon">💧</span>
+            <div>
+              <div class="clima-stat-val" id="weatherHumidity">-- %</div>
+              <div class="clima-stat-lbl">Humedad / Precip.</div>
+            </div>
+          </div>
+
+          <div class="clima-stat-box">
+            <span class="clima-stat-icon">☀️</span>
+            <div>
+              <div class="clima-stat-val" id="weatherUV">--</div>
+              <div class="clima-stat-lbl">Índice UV</div>
+            </div>
+          </div>
+
+          <div class="clima-stat-box">
+            <span class="clima-stat-icon">💨</span>
+            <div>
+              <div class="clima-stat-val" id="weatherWind">-- km/h</div>
+              <div class="clima-stat-lbl">Viento</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="clima-recommendation-panel" id="climaRecPanel">
+          <div class="clima-rec-badge" id="climaRecBadge">ℹ️ Estado del Tiempo</div>
+          <div class="clima-rec-title" id="climaRecTitle">Obteniendo clima en vivo...</div>
+          <p class="clima-rec-desc" id="climaRecDesc">Activa tu GPS para calcular el espacio con agua potable o climatización más cercano a tu ubicación exacta.</p>
+          
+          <div class="clima-quick-actions">
+            <button class="btn btn-secondary btn-sm" id="btnFindWater">💧 Buscar Agua Potable Gratis</button>
+            <button class="btn btn-secondary btn-sm" id="btnFindShade">❄️ Buscar Refugio / A/C</button>
+            <button class="btn btn-secondary btn-sm" id="btnFindWarm">🔥 Buscar Espacio Techado</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   
 
   <!-- Directory Section -->
@@ -156,6 +221,16 @@
               <button class="chip" data-municipio="Jesús María">Jesús María</button>
               <button class="chip" data-municipio="Calvillo">Calvillo</button>
               <button class="chip" data-municipio="Pabellón de Arteaga">Pabellón de Arteaga</button>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Servicios de Confort e Hidratación</label>
+            <div class="chips-row" id="comfortChips">
+              <button class="chip active" data-comfort="all">Todos</button>
+              <button class="chip" data-comfort="water">💧 Agua Gratis</button>
+              <button class="chip" data-comfort="ac">❄️ Climatización (A/C)</button>
+              <button class="chip" data-comfort="shade">🌳 Sombra / Frescor</button>
             </div>
           </div>
         </div>
@@ -209,6 +284,13 @@
         </div>
 
         <div class="mapa-container-wrapper">
+          <div class="map-layer-switcher" id="mapLayerSwitcher">
+            <span class="switcher-label">🌐 Capas del Mapa:</span>
+            <button class="layer-chip active" data-layer="spaces">🏛️ Recintos</button>
+            <button class="layer-chip" data-layer="heat">🌡️ Mapa de Calor</button>
+            <button class="layer-chip" data-layer="water">💧 Mapa de Agua</button>
+            <button class="layer-chip" data-layer="weather">🌤️ Clima Actual</button>
+          </div>
           <div id="leafletMap" class="leaflet-map-element"></div>
         </div>
       </div>
@@ -344,6 +426,16 @@
           <div class="info-label">🏛️ Adscripción y Municipio</div>
           <div class="info-value" id="drawerMunicipio">Aguascalientes (Zona Centro)</div>
         </div>
+
+        <div class="drawer-info-block comfort-info-section">
+          <div class="info-label">🌱 Servicios y Confort Climático</div>
+          <div class="comfort-badges-grid" id="drawerComfortBadges">
+            <span class="comfort-chip chip-water" id="drawerWaterChip">💧 Agua Potable Gratis</span>
+            <span class="comfort-chip chip-ac" id="drawerAcChip">❄️ Aire Acondicionado</span>
+            <span class="comfort-chip chip-shade" id="drawerShadeChip">🌳 Sombra Alta</span>
+          </div>
+          <div class="info-value-sub" id="drawerComfortDesc">Espacio óptimo para resguardo térmico e hidratación.</div>
+        </div>
       </div>
       
       <div class="drawer-footer">
@@ -360,12 +452,12 @@
     <div class="modal-card" id="addSpaceModal">
       <button class="modal-close-btn" id="closeAddSpaceModal" aria-label="Cerrar">&times;</button>
       <div class="modal-header">
-        <h3 class="modal-title">Agregar Espacio Cultural</h3>
-        <p class="modal-subtitle">Registra un nuevo espacio público en el directorio y mapa.</p>
+        <h3 class="modal-title">Agregar Espacio Cultural / Negocio</h3>
+        <p class="modal-subtitle">Registra un nuevo espacio público o negocio con servicios climáticos.</p>
       </div>
       <form id="addSpaceForm" class="modal-form">
         <div class="form-group">
-          <label for="spaceNameInput">Nombre del Recinto *</label>
+          <label for="spaceNameInput">Nombre del Recinto / Negocio *</label>
           <input type="text" id="spaceNameInput" required placeholder="Ej. Casa de la Cultura El Pinar">
         </div>
         <div class="form-group">
@@ -398,6 +490,25 @@
             </select>
           </div>
         </div>
+
+        <div class="form-group-row">
+          <div class="form-group">
+            <label for="spaceShadeInput">Nivel de Sombra / Resguardo</label>
+            <select id="spaceShadeInput">
+              <option value="Alta">Alta (Arbolado / Techado)</option>
+              <option value="Media">Media (Sombra parcial)</option>
+              <option value="Baja">Baja (Exposición solar)</option>
+            </select>
+          </div>
+          <div class="form-group checkboxes-group" style="display: flex; flex-direction: column; justify-content: center; gap: 8px;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="spaceWaterInput" checked> 💧 Punto de Agua Potable Gratis
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="spaceAcInput" checked> ❄️ Aire Acondicionado / Climatización
+            </label>
+          </div>
+        </div>
         <div class="form-group-row">
           <div class="form-group">
             <label for="spacePhoneInput">Teléfono de contacto</label>
@@ -428,6 +539,8 @@
 
   <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Leaflet Heatmap Plugin -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Custom Javascript -->

@@ -1991,3 +1991,305 @@ a {
     transform: rotate(360deg);
   }
 }
+
+/* ==========================================================================
+   13. Asistente Climático & GPS UI Styles
+   ========================================================================== */
+.clima-section {
+  padding: 40px 0 60px;
+  background: var(--bg-obsidian);
+}
+
+.clima-card-hero {
+  background: radial-gradient(circle at top left, rgba(0, 242, 254, 0.1) 0%, rgba(15, 23, 42, 0.95) 70%);
+  border: 1px solid rgba(0, 242, 254, 0.2);
+  border-radius: var(--border-radius-lg);
+  padding: 36px;
+  box-shadow: var(--shadow-glow-card);
+  backdrop-filter: blur(16px);
+}
+
+.clima-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.clima-main-title {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-white);
+  margin: 6px 0;
+}
+
+.clima-subtitle {
+  color: var(--text-gray-medium);
+  font-size: 0.92rem;
+  max-width: 600px;
+}
+
+.badge-clima {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.btn-gps {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 24px;
+  font-size: 0.9rem;
+}
+
+.clima-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.clima-stat-box {
+  background: rgba(3, 7, 18, 0.6);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius-md);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transition: var(--transition-smooth);
+}
+
+.clima-stat-box:hover {
+  border-color: rgba(0, 242, 254, 0.3);
+  transform: translateY(-2px);
+}
+
+.clima-stat-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.clima-stat-val {
+  font-family: var(--font-heading);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.clima-stat-lbl {
+  font-size: 0.72rem;
+  color: var(--text-gray-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.clima-recommendation-panel {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  border-radius: var(--border-radius-md);
+  padding: 24px;
+  position: relative;
+}
+
+.clima-rec-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.clima-rec-title {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-white);
+  margin-bottom: 8px;
+}
+
+.clima-rec-desc {
+  font-size: 0.88rem;
+  color: var(--text-gray-light);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+
+.clima-quick-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Map Layer Switcher */
+.map-layer-switcher {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 1000;
+  background: rgba(3, 7, 18, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--border-radius-md);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  flex-wrap: wrap;
+}
+
+.switcher-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-gray-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+
+.layer-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  color: var(--text-gray-light);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.layer-chip:hover {
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--text-white);
+  border-color: rgba(0, 242, 254, 0.3);
+}
+
+.layer-chip.active {
+  background: var(--accent-blue);
+  color: #000;
+  border-color: transparent;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+}
+
+/* Comfort Badges in Cards & Drawer */
+.card-comfort-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.badge-comfort {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 50px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.badge-water {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-ac {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.badge-shade {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.comfort-badges-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.comfort-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: var(--border-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-water {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.chip-ac {
+  background: rgba(6, 182, 212, 0.12);
+  color: #67e8f9;
+  border: 1px solid rgba(6, 182, 212, 0.25);
+}
+
+.chip-shade {
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.info-value-sub {
+  font-size: 0.8rem;
+  color: var(--text-gray-medium);
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.checkbox-label {
+  font-size: 0.8rem !important;
+  color: var(--text-gray-light) !important;
+  text-transform: none !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-cyan);
+}
+
+@media (max-width: 768px) {
+  .clima-card-hero {
+    padding: 24px;
+  }
+  .clima-main-title {
+    font-size: 1.5rem;
+  }
+  .map-layer-switcher {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    font-size: 0.7rem;
+  }
+  .switcher-label {
+    display: none;
+  }
+}
