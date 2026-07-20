@@ -70,7 +70,7 @@
         
         <div class="hero-buttons">
           <a href="#espacios" class="btn btn-glow">Ver Espacios</a>
-          <a href="https://www.google.com/maps/@21.8891968,-102.3090246,15z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDYyOS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-secondary">
+          <a href="https://www.google.com/maps/@22.0890584,-102.4847025,10z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-secondary" id="heroGmapsLink">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
             Abrir Google Maps
           </a>
@@ -288,7 +288,7 @@
           <p class="section-subtitle">Explora de forma visual la infraestructura cultural pública. Haz zoom y haz clic en los pines para ver detalles.</p>
           
           <div class="mapa-actions">
-            <a href="https://www.google.com/maps/@21.8891968,-102.3090246,15z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDYyOS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-glow">
+            <a href="https://www.google.com/maps/@22.0890584,-102.4847025,10z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-glow" id="sectionGmapsLink">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               Abrir Mapa Oficial de Google
             </a>
@@ -590,8 +590,12 @@
             <input type="text" id="spaceMapQueryInput" placeholder="Ej. Casa+Cultura+Pinar+Aguascalientes">
           </div>
         </div>
+        <div class="form-group" style="margin-top: 10px;">
+          <label for="spaceGmapsUrlInput">🔗 Enlace de Google Maps / Coordenadas (Auto-extrae Lat/Lng)</label>
+          <input type="text" id="spaceGmapsUrlInput" placeholder="Pega aquí el link de Google Maps (ej. https://www.google.com/maps/@21.882,-102.298,17z)">
+        </div>
         <div class="form-note">
-          ℹ️ Las coordenadas geográficas serán calculadas automáticamente según el municipio si se dejan en blanco.
+          ℹ️ Las coordenadas geográficas se extraen automáticamente de la URL de Google Maps o se calculan por municipio.
         </div>
         <div class="form-group-row" style="margin-top: 10px;">
           <div class="form-group">

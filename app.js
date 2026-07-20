@@ -1725,6 +1725,46 @@ if (addSpaceModalOverlay) {
   });
 }
 
+// --- Helper para extraer latitud y longitud automáticamente de URLs de Google Maps ---
+function extractCoordsFromGmapsUrl(urlStr) {
+  if (!urlStr || typeof urlStr !== 'string') return null;
+  // Coordenadas estilo @lat,lng
+  const atMatch = urlStr.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) {
+    return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+  }
+  // Coordenadas estilo q=lat,lng o ll=lat,lng
+  const qMatch = urlStr.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qMatch) {
+    return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+  }
+  // Coordenadas de inserción !3d(lat)!4d(lng)
+  const dMatch = urlStr.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (dMatch) {
+    return { lat: parseFloat(dMatch[1]), lng: parseFloat(dMatch[2]) };
+  }
+  // Coordenadas simples en texto lat, lng
+  const plainMatch = urlStr.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+  if (plainMatch) {
+    return { lat: parseFloat(plainMatch[1]), lng: parseFloat(plainMatch[2]) };
+  }
+  return null;
+}
+
+// Auto-detector de URL en el input del modal
+const spaceGmapsUrlInput = document.getElementById("spaceGmapsUrlInput");
+if (spaceGmapsUrlInput) {
+  spaceGmapsUrlInput.addEventListener("input", (e) => {
+    const parsed = extractCoordsFromGmapsUrl(e.target.value);
+    if (parsed) {
+      const latEl = document.getElementById("spaceLatInput");
+      const lngEl = document.getElementById("spaceLngInput");
+      if (latEl) latEl.value = parsed.lat;
+      if (lngEl) lngEl.value = parsed.lng;
+    }
+  });
+}
+
 // Form Submission & Auto-saving
 if (addSpaceForm) {
   addSpaceForm.addEventListener("submit", async (e) => {
@@ -1736,6 +1776,10 @@ if (addSpaceForm) {
     const municipio = document.getElementById("spaceMunicipioInput").value;
     const phone = document.getElementById("spacePhoneInput").value.trim() || "No disponible";
     const mapQueryInput = document.getElementById("spaceMapQueryInput").value.trim();
+    const gmapsUrlVal = document.getElementById("spaceGmapsUrlInput") ? document.getElementById("spaceGmapsUrlInput").value.trim() : "";
+
+    // Parse coordinates from URL if inputs are empty
+    let parsedFromUrl = extractCoordsFromGmapsUrl(gmapsUrlVal);
 
     // Default coordinates center for municipios if empty
     const muniCoords = {
@@ -1749,16 +1793,16 @@ if (addSpaceForm) {
     };
 
     const center = muniCoords[municipio] || [21.9, -102.3];
-    // Add a tiny random offset so overlapping markers don't align exactly
     const offsetLat = (Math.random() - 0.5) * 0.008;
     const offsetLng = (Math.random() - 0.5) * 0.008;
 
-    const latValue = parseFloat(document.getElementById("spaceLatInput").value);
-    const lngValue = parseFloat(document.getElementById("spaceLngInput").value);
-    const lat = isNaN(latValue) ? (center[0] + offsetLat) : latValue;
-    const lng = isNaN(lngValue) ? (center[1] + offsetLng) : lngValue;
+    const rawLat = parseFloat(document.getElementById("spaceLatInput").value);
+    const rawLng = parseFloat(document.getElementById("spaceLngInput").value);
 
-    const mapQuery = mapQueryInput || encodeURIComponent(name + " " + municipio + " Aguascalientes");
+    let lat = !isNaN(rawLat) ? rawLat : (parsedFromUrl ? parsedFromUrl.lat : (center[0] + offsetLat));
+    let lng = !isNaN(rawLng) ? rawLng : (parsedFromUrl ? parsedFromUrl.lng : (center[1] + offsetLng));
+
+    const mapQuery = mapQueryInput || (gmapsUrlVal ? encodeURIComponent(gmapsUrlVal) : encodeURIComponent(name + " " + municipio + " Aguascalientes"));
 
     const hasWater = document.getElementById("spaceWaterInput") ? document.getElementById("spaceWaterInput").checked : true;
     const hasAC = document.getElementById("spaceAcInput") ? document.getElementById("spaceAcInput").checked : true;
@@ -1816,6 +1860,7 @@ if (addSpaceForm) {
     updateStatsTargets();
     filterData();
     if (map) switchMapLayer(activeMapLayer);
+    showSyncNotification(name);
 
     // Close
     closeAddSpaceModalFunc();
