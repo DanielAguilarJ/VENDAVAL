@@ -609,7 +609,7 @@ function showSyncNotification(name) {
 }
 
 // --- Google Maps Live Shared List Sync Engine ---
-const OFFICIAL_GMAPS_LIST_URL = "https://www.google.com/maps/@22.0890584,-102.4847025,10z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g";
+const OFFICIAL_GMAPS_LIST_URL = "https://www.google.com/maps/@22.0409642,-102.6739162,120170m/data=!3m1!1e3!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D";
 
 async function syncGoogleMapsList(userInitiated = false) {
   const syncBtn1 = document.getElementById("syncGmapsBtn");
