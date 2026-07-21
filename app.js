@@ -608,6 +608,119 @@ function showSyncNotification(name) {
   }, 4500);
 }
 
+// --- Google Maps Live Shared List Sync Engine ---
+const OFFICIAL_GMAPS_LIST_URL = "https://www.google.com/maps/@22.0890584,-102.4847025,10z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g";
+
+async function syncGoogleMapsList(userInitiated = false) {
+  const syncBtn1 = document.getElementById("syncGmapsBtn");
+  const syncBtn2 = document.getElementById("syncGmapsBtnMap");
+  
+  if (syncBtn1 && userInitiated) syncBtn1.innerHTML = `⏳ Sincronizando...`;
+  if (syncBtn2 && userInitiated) syncBtn2.innerHTML = `⏳ Sincronizando...`;
+
+  try {
+    const proxies = [
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(OFFICIAL_GMAPS_LIST_URL)}`,
+      `https://corsproxy.io/?${encodeURIComponent(OFFICIAL_GMAPS_LIST_URL)}`
+    ];
+
+    let htmlText = "";
+    for (const p of proxies) {
+      try {
+        const res = await fetch(p);
+        if (res.ok) {
+          htmlText = await res.text();
+          if (htmlText && htmlText.length > 500) break;
+        }
+      } catch (e) {
+        console.warn("Proxy attempt failed:", p, e);
+      }
+    }
+
+    let addedCount = 0;
+
+    if (htmlText) {
+      const matches = htmlText.match(/\["([^"]+)",\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]/g) || [];
+      const extractedPlaces = [];
+
+      matches.forEach(m => {
+        const parts = m.match(/\["([^"]+)",\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]/);
+        if (parts && parts[1] && parts[2] && parts[3]) {
+          extractedPlaces.push({
+            name: parts[1],
+            lat: parseFloat(parts[2]),
+            lng: parseFloat(parts[3])
+          });
+        }
+      });
+
+      for (const place of extractedPlaces) {
+        if (isNaN(place.lat) || isNaN(place.lng)) continue;
+        
+        const exists = activeSpacesList.some(s => 
+          Math.abs(s.lat - place.lat) < 0.0005 && Math.abs(s.lng - place.lng) < 0.0005
+        );
+
+        if (!exists) {
+          const newSpace = {
+            name: place.name || "Nuevo Espacio Google Maps",
+            address: "Aguascalientes",
+            phone: "No disponible",
+            type: "Centro Cultural",
+            municipio: "Aguascalientes",
+            lat: place.lat,
+            lng: place.lng,
+            mapQuery: encodeURIComponent(place.name + " Aguascalientes"),
+            hasWater: true,
+            hasAC: true,
+            shadeLevel: "Alta",
+            climateComfort: "Punto de confort térmico e hidratación importado en vivo desde Google Maps."
+          };
+          normalizeSpaceComfort(newSpace);
+
+          if (supabaseClient) {
+            try {
+              const { data } = await supabaseClient.from("espacios_culturales").insert([newSpace]).select();
+              if (data && data[0]) {
+                activeSpacesList.push(data[0]);
+              } else {
+                newSpace.id = Date.now() + Math.floor(Math.random()*1000);
+                activeSpacesList.push(newSpace);
+              }
+            } catch (err) {
+              newSpace.id = Date.now() + Math.floor(Math.random()*1000);
+              activeSpacesList.push(newSpace);
+            }
+          } else {
+            newSpace.id = Date.now() + Math.floor(Math.random()*1000);
+            activeSpacesList.push(newSpace);
+          }
+
+          addedCount++;
+        }
+      }
+    }
+
+    if (addedCount > 0) {
+      updateStatsTargets();
+      filterData();
+      if (map) switchMapLayer(activeMapLayer);
+    }
+
+    if (userInitiated || addedCount > 0) {
+      const msg = addedCount > 0 
+        ? `🔄 ¡Sincronizado! ${addedCount} nueva(s) ubicación(es) de Google Maps importadas.`
+        : `✅ Lista de Google Maps al día (${activeSpacesList.length} espacios activos).`;
+      showSyncNotification(msg);
+    }
+  } catch (err) {
+    console.error("Error syncing Google Maps list:", err);
+  } finally {
+    if (syncBtn1) syncBtn1.innerHTML = `🔄 Sincronizar Google Maps`;
+    if (syncBtn2) syncBtn2.innerHTML = `🔄 Sincronizar en Vivo`;
+  }
+}
+
 // --- 1.5 Clima, GPS y Motor de Recomendaciones Climáticas ---
 let currentWeatherData = {
   temp: 26,
@@ -1961,6 +2074,22 @@ document.addEventListener("DOMContentLoaded", () => {
       findNearestWaterPoints();
     });
   }
+
+  // Bind Google Maps Sync Buttons
+  const syncBtn1 = document.getElementById("syncGmapsBtn");
+  if (syncBtn1) {
+    syncBtn1.addEventListener("click", () => syncGoogleMapsList(true));
+  }
+
+  const syncBtn2 = document.getElementById("syncGmapsBtnMap");
+  if (syncBtn2) {
+    syncBtn2.addEventListener("click", () => syncGoogleMapsList(true));
+  }
+
+  // Periodic Auto-Sync every 30 seconds
+  setInterval(() => {
+    syncGoogleMapsList(false);
+  }, 30000);
 
   if (supabaseClient) {
     loadSpacesFromSupabase();

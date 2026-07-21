@@ -217,6 +217,9 @@
             <input type="text" id="searchInput" placeholder="Escribe el nombre del espacio, calle o municipio..." aria-label="Buscar espacio cultural">
             <button id="clearSearch" class="clear-search-btn" aria-label="Limpiar búsqueda" style="display: none;">&times;</button>
           </div>
+          <button id="syncGmapsBtn" class="btn btn-secondary" title="Sincronizar ubicaciones en vivo con la lista oficial de Google Maps">
+            🔄 Sincronizar Google Maps
+          </button>
           <button id="openAddSpaceBtn" class="btn btn-glow">+ Agregar Espacio</button>
         </div>
 
@@ -287,11 +290,14 @@
           <h2 class="section-main-title">Mapa de Distribución</h2>
           <p class="section-subtitle">Explora de forma visual la infraestructura cultural pública. Haz zoom y haz clic en los pines para ver detalles.</p>
           
-          <div class="mapa-actions">
+          <div class="mapa-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="https://www.google.com/maps/@22.0890584,-102.4847025,10z/data=!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-glow" id="sectionGmapsLink">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
               Abrir Mapa Oficial de Google
             </a>
+            <button id="syncGmapsBtnMap" class="btn btn-secondary">
+              🔄 Sincronizar en Vivo
+            </button>
           </div>
 
           <div class="map-legend-panel">
