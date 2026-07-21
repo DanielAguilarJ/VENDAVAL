@@ -619,18 +619,19 @@ async function syncGoogleMapsList(userInitiated = false) {
   if (syncBtn2 && userInitiated) syncBtn2.innerHTML = `⏳ Sincronizando...`;
 
   try {
+    const listApiUrl = "https://www.google.com/maps/preview/entitylist/getlist?authuser=0&hl=es&gl=mx&pb=!1m1!1sGzNGWQCSTaKUCoHh621-3g!2e2!3e2!4i500";
     const proxies = [
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(OFFICIAL_GMAPS_LIST_URL)}`,
-      `https://corsproxy.io/?${encodeURIComponent(OFFICIAL_GMAPS_LIST_URL)}`
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(listApiUrl)}`,
+      `https://corsproxy.io/?${encodeURIComponent(listApiUrl)}`
     ];
 
-    let htmlText = "";
+    let responseText = "";
     for (const p of proxies) {
       try {
         const res = await fetch(p);
         if (res.ok) {
-          htmlText = await res.text();
-          if (htmlText && htmlText.length > 500) break;
+          responseText = await res.text();
+          if (responseText && responseText.length > 200) break;
         }
       } catch (e) {
         console.warn("Proxy attempt failed:", p, e);
@@ -638,79 +639,159 @@ async function syncGoogleMapsList(userInitiated = false) {
     }
 
     let addedCount = 0;
+    let updatedCount = 0;
 
-    if (htmlText) {
-      const matches = htmlText.match(/\["([^"]+)",\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]/g) || [];
-      const extractedPlaces = [];
+    if (responseText) {
+      let cleanText = responseText.trim();
+      if (cleanText.startsWith(")]}'")) {
+        cleanText = cleanText.substring(4).trim();
+      }
+      
+      const parsedData = JSON.parse(cleanText);
+      const listInfo = parsedData[0];
+      const places = listInfo[8] || [];
 
-      matches.forEach(m => {
-        const parts = m.match(/\["([^"]+)",\[null,null,(-?\d+\.\d+),(-?\d+\.\d+)\]/);
-        if (parts && parts[1] && parts[2] && parts[3]) {
-          extractedPlaces.push({
-            name: parts[1],
-            lat: parseFloat(parts[2]),
-            lng: parseFloat(parts[3])
-          });
-        }
-      });
-
-      for (const place of extractedPlaces) {
-        if (isNaN(place.lat) || isNaN(place.lng)) continue;
+      for (const p of places) {
+        if (!p || p.length < 3) continue;
         
-        const exists = activeSpacesList.some(s => 
-          Math.abs(s.lat - place.lat) < 0.0005 && Math.abs(s.lng - place.lng) < 0.0005
+        const name = p[2] || "Nuevo Espacio Google Maps";
+        const note = p[3] || "";
+        
+        const coordsArray = p[1] && p[1].length > 5 ? p[1][5] : null;
+        if (!coordsArray || coordsArray.length < 4) continue;
+        
+        const lat = parseFloat(coordsArray[2]);
+        const lng = parseFloat(coordsArray[3]);
+        if (isNaN(lat) || isNaN(lng)) continue;
+
+        const noteLower = note.toLowerCase();
+        
+        // Bebederos / dispensadores de agua
+        const hasWater = noteLower.includes("agua") || 
+                         noteLower.includes("bebedero") || 
+                         noteLower.includes("dispensador") || 
+                         noteLower.includes("hidratac") || 
+                         noteLower.includes("🚰") || 
+                         noteLower.includes("💧") ||
+                         noteLower.includes("potable");
+                         
+        // Aire acondicionado / Climatización
+        const hasAC = noteLower.includes("a/c") || 
+                      noteLower.includes("ac") || 
+                      noteLower.includes("clima") || 
+                      noteLower.includes("aire") || 
+                      noteLower.includes("acondicionado") ||
+                      noteLower.includes("❄️");
+
+        // Nivel de Sombra
+        let shadeLevel = "Media";
+        if (noteLower.includes("sombra alta") || noteLower.includes("arbolado") || noteLower.includes("mucha sombra") || noteLower.includes("🌳")) {
+          shadeLevel = "Alta";
+        } else if (noteLower.includes("sombra baja") || noteLower.includes("despejado") || noteLower.includes("soleado")) {
+          shadeLevel = "Baja";
+        }
+
+        // Tipo de Recinto
+        let type = "Centro Cultural";
+        if (noteLower.includes("biblioteca") || noteLower.includes("📚")) {
+          type = "Biblioteca";
+        } else if (noteLower.includes("teatro") || noteLower.includes("🎭")) {
+          type = "Teatro";
+        } else if (noteLower.includes("galería") || noteLower.includes("museo") || noteLower.includes("🖼️") || noteLower.includes("galeria")) {
+          type = "Galería de Arte";
+        } else if (noteLower.includes("comunitario") || noteLower.includes("comuna")) {
+          type = "Centro Comunitario";
+        } else if (noteLower.includes("casa de cultura") || noteLower.includes("casa cultura")) {
+          type = "Casa de Cultura";
+        }
+
+        const climateComfort = note || (hasWater 
+          ? (hasAC ? "Punto de agua potable gratis y aire acondicionado." : "Acceso libre a agua potable y sombra natural.")
+          : "Espacio techado adecuado para resguardo contra clima severo.");
+
+        const spacePayload = {
+          name: name,
+          address: "Aguascalientes",
+          phone: "No disponible",
+          type: type,
+          municipio: "Aguascalientes",
+          lat: lat,
+          lng: lng,
+          mapQuery: encodeURIComponent(name + " Aguascalientes"),
+          hasWater: hasWater,
+          hasAC: hasAC,
+          shadeLevel: shadeLevel,
+          climateComfort: climateComfort
+        };
+
+        const existingIndex = activeSpacesList.findIndex(s => 
+          Math.abs(s.lat - lat) < 0.0005 && Math.abs(s.lng - lng) < 0.0005
         );
 
-        if (!exists) {
-          const newSpace = {
-            name: place.name || "Nuevo Espacio Google Maps",
-            address: "Aguascalientes",
-            phone: "No disponible",
-            type: "Centro Cultural",
-            municipio: "Aguascalientes",
-            lat: place.lat,
-            lng: place.lng,
-            mapQuery: encodeURIComponent(place.name + " Aguascalientes"),
-            hasWater: true,
-            hasAC: true,
-            shadeLevel: "Alta",
-            climateComfort: "Punto de confort térmico e hidratación importado en vivo desde Google Maps."
-          };
-          normalizeSpaceComfort(newSpace);
-
+        if (existingIndex === -1) {
           if (supabaseClient) {
             try {
-              const { data } = await supabaseClient.from("espacios_culturales").insert([newSpace]).select();
+              const { data } = await supabaseClient.from("espacios_culturales").insert([spacePayload]).select();
               if (data && data[0]) {
                 activeSpacesList.push(data[0]);
               } else {
-                newSpace.id = Date.now() + Math.floor(Math.random()*1000);
-                activeSpacesList.push(newSpace);
+                spacePayload.id = Date.now() + Math.floor(Math.random()*1000);
+                activeSpacesList.push(spacePayload);
               }
             } catch (err) {
-              newSpace.id = Date.now() + Math.floor(Math.random()*1000);
-              activeSpacesList.push(newSpace);
+              spacePayload.id = Date.now() + Math.floor(Math.random()*1000);
+              activeSpacesList.push(spacePayload);
             }
           } else {
-            newSpace.id = Date.now() + Math.floor(Math.random()*1000);
-            activeSpacesList.push(newSpace);
+            spacePayload.id = Date.now() + Math.floor(Math.random()*1000);
+            activeSpacesList.push(spacePayload);
           }
-
           addedCount++;
+        } else {
+          const existing = activeSpacesList[existingIndex];
+          if (existing.hasWater !== hasWater || existing.hasAC !== hasAC || existing.climateComfort !== climateComfort || existing.shadeLevel !== shadeLevel || existing.type !== type) {
+            existing.hasWater = hasWater;
+            existing.hasAC = hasAC;
+            existing.shadeLevel = shadeLevel;
+            existing.climateComfort = climateComfort;
+            existing.type = type;
+
+            if (supabaseClient && existing.id && typeof existing.id === 'number') {
+              try {
+                await supabaseClient.from("espacios_culturales").update({
+                  hasWater: hasWater,
+                  hasAC: hasAC,
+                  shadeLevel: shadeLevel,
+                  climateComfort: climateComfort,
+                  type: type
+                }).eq('id', existing.id);
+              } catch (err) {
+                console.error("Error updating Supabase space:", err);
+              }
+            }
+            updatedCount++;
+          }
         }
       }
     }
 
-    if (addedCount > 0) {
+    if (addedCount > 0 || updatedCount > 0) {
       updateStatsTargets();
       filterData();
       if (map) switchMapLayer(activeMapLayer);
     }
 
-    if (userInitiated || addedCount > 0) {
-      const msg = addedCount > 0 
-        ? `🔄 ¡Sincronizado! ${addedCount} nueva(s) ubicación(es) de Google Maps importadas.`
-        : `✅ Lista de Google Maps al día (${activeSpacesList.length} espacios activos).`;
+    if (userInitiated || addedCount > 0 || updatedCount > 0) {
+      let msg = "";
+      if (addedCount > 0 && updatedCount > 0) {
+        msg = `🔄 ¡Sincronizado! ${addedCount} nuevos y ${updatedCount} actualizados desde Google Maps.`;
+      } else if (addedCount > 0) {
+        msg = `🔄 ¡Sincronizado! ${addedCount} nuevas ubicaciones de Google Maps añadidas.`;
+      } else if (updatedCount > 0) {
+        msg = `🔄 ¡Sincronizado! ${updatedCount} características/descripciones actualizadas desde Google Maps.`;
+      } else {
+        msg = `✅ Características y descripciones al día con Google Maps (${activeSpacesList.length} espacios).`;
+      }
       showSyncNotification(msg);
     }
   } catch (err) {
@@ -1380,7 +1461,8 @@ function getMarkerColor(type) {
     "Teatro": "#ec4899",         // pink
     "Centro Cultural": "#3b82f6", // blue
     "Galería de Arte": "#a855f7", // purple
-    "Centro Comunitario": "#10b981" // green
+    "Centro Comunitario": "#10b981", // green
+    "Biblioteca": "#eab308"          // yellow/gold
   };
   return colors[type] || "#ffffff";
 }
@@ -1467,7 +1549,8 @@ function getBadgeClass(type) {
     "Teatro": "badge-teatro",
     "Centro Cultural": "badge-centro",
     "Galería de Arte": "badge-galeria",
-    "Centro Comunitario": "badge-comunitario"
+    "Centro Comunitario": "badge-comunitario",
+    "Biblioteca": "badge-biblioteca"
   };
   return badgeClasses[type] || "badge-casa";
 }

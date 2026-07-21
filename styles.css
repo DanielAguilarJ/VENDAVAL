@@ -26,6 +26,7 @@
   --badge-blue: #3b82f6;
   --badge-green: #10b981;
   --badge-pink: #ec4899;
+  --badge-yellow: #eab308;
 
   /* Typography */
   --font-heading: 'Space Grotesk', sans-serif;
@@ -585,6 +586,7 @@ a {
 .border-purple { border-color: var(--badge-purple); }
 .border-blue { border-color: var(--badge-blue); }
 .border-green { border-color: var(--badge-green); }
+.border-yellow { border-color: var(--badge-yellow); }
 
 .tab-label strong {
   display: block;
@@ -883,6 +885,7 @@ a {
 .badge-centro { background: rgba(59, 130, 246, 0.1); color: var(--badge-blue); }
 .badge-galeria { background: rgba(168, 85, 247, 0.1); color: var(--badge-purple); }
 .badge-comunitario { background: rgba(16, 185, 129, 0.1); color: var(--badge-green); }
+.badge-biblioteca { background: rgba(234, 179, 8, 0.1); color: var(--badge-yellow); }
 
 .space-municipio {
   font-size: 0.72rem;
@@ -1020,6 +1023,7 @@ a {
 .dot-centro { background-color: var(--badge-blue); }
 .dot-galeria { background-color: var(--badge-purple); }
 .dot-comunitario { background-color: var(--badge-green); }
+.dot-biblioteca { background-color: var(--badge-yellow); }
 
 /* Map Container Wrapper */
 .mapa-container-wrapper {
