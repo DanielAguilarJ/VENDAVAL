@@ -1,9 +1,242 @@
 // ==========================================================================
-// PORTAL DE ESPACIOS CULTURALES DE AGUASCALIENTES - LOGIC
-// Colectivo Vendaval IAJU
+// VENDAVAL · Espacios culturales y clima de Aguascalientes
+// Lógica de interfaz: directorio, mapa, asistente climático, altas y avisos.
+// JavaScript estándar, sin framework. Leaflet y Supabase llegan del HTML.
+// Contrato de clases y de ids: index.html + styles.css.
 // ==========================================================================
 
-// --- 1. Dataset Completo de Espacios Públicos Culturales ---
+// ==========================================================================
+// 0. UTILIDADES
+// ==========================================================================
+
+// Símbolos disponibles en el sprite de index.html
+const SIMBOLOS = new Set([
+  "termometro", "gota", "sol", "viento", "fuego", "ubicacion", "busqueda",
+  "sin-resultados", "filtro", "mapa", "capas", "cerrar", "menu", "mas",
+  "flecha-derecha", "flecha-arriba", "flecha-abajo", "arbol", "aire", "agua",
+  "reloj", "alerta", "info", "telefono", "enlace-externo", "equipo",
+  "brujula", "edificio", "nube-sol", "sincronizar", "hoja"
+]);
+
+// Único generador de iconos: devuelve el marcado del sprite, nunca un emoji.
+function icono(nombre, clases) {
+  const simbolo = SIMBOLOS.has(nombre) ? nombre : "info";
+  const extra = clases ? " " + clases : "";
+  return '<svg class="icon' + extra + '" aria-hidden="true" focusable="false">' +
+    '<use href="#icono-' + simbolo + '"></use></svg>';
+}
+
+const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+// Todo dato externo (base remota, lista de Google Maps, formulario) se escapa
+// antes de entrar en una plantilla de innerHTML.
+function esc(valor) {
+  if (valor === null || valor === undefined) return "";
+  return String(valor).replace(/[&<>"']/g, (c) => ESCAPES[c]);
+}
+
+function nodo(etiqueta, clase, texto) {
+  const elemento = document.createElement(etiqueta);
+  if (clase) elemento.className = clase;
+  if (texto !== undefined && texto !== null) elemento.textContent = String(texto);
+  return elemento;
+}
+
+// Pastilla con icono. El espaciador solo hace falta en contenedores flex sin
+// gap declarado (.space-badge, .uv-tag, .overlay-badge).
+function pastilla(clase, simbolo, texto, espaciador) {
+  const elemento = nodo("span", clase);
+  elemento.innerHTML = icono(simbolo) + (espaciador ? "&#160;" : "") + esc(texto);
+  return elemento;
+}
+
+// Los colores de Leaflet se escriben como atributos SVG y no admiten var(),
+// así que se leen del único origen de tokens: el bloque :root de styles.css.
+const cacheTokens = new Map();
+
+function colorToken(nombre) {
+  if (cacheTokens.has(nombre)) return cacheTokens.get(nombre);
+  let valor = "";
+  try {
+    valor = getComputedStyle(document.documentElement).getPropertyValue(nombre).trim();
+  } catch (err) {
+    valor = "";
+  }
+  // Respaldo sin literal de color: currentColor resuelve al color heredado
+  // del contenedor del mapa si el token no se pudo leer.
+  const resultado = valor || "currentColor";
+  cacheTokens.set(nombre, resultado);
+  return resultado;
+}
+
+function movimientoReducido() {
+  return typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Desplazamiento animado salvo con movimiento reducido (Requisito 2.6).
+function irASeccion(elemento) {
+  if (!elemento || typeof elemento.scrollIntoView !== "function") return;
+  elemento.scrollIntoView({
+    behavior: movimientoReducido() ? "auto" : "smooth",
+    block: "start"
+  });
+}
+
+const $ = (id) => document.getElementById(id);
+
+// ==========================================================================
+// 1. AVISOS VISIBLES (contenedor #toast-container de index.html)
+// ==========================================================================
+
+const TOAST_MAXIMO = 3;
+const TOAST_DURACION = 5200;
+const TOAST_SALIDA = 400;
+const avisosRecientes = new Map();
+
+const VARIANTE_AVISO = {
+  info: "",
+  exito: "sync-toast-exito",
+  alerta: "sync-toast-alerta",
+  error: "sync-toast-error"
+};
+
+function avisar(opciones) {
+  const contenedor = $("toast-container");
+  if (!contenedor) return;
+
+  const {
+    titulo,
+    cuerpo = "",
+    tipo = "info",
+    simbolo = "info",
+    clave = null,
+    silenciarMs = 30000
+  } = opciones || {};
+  if (!titulo) return;
+
+  // Evita repetir el mismo aviso en cada ciclo de sincronización.
+  if (clave) {
+    const ultimo = avisosRecientes.get(clave) || 0;
+    if (Date.now() - ultimo < silenciarMs) return;
+    avisosRecientes.set(clave, Date.now());
+  }
+
+  while (contenedor.children.length >= TOAST_MAXIMO) {
+    contenedor.removeChild(contenedor.firstElementChild);
+  }
+
+  const variante = VARIANTE_AVISO[tipo] || "";
+  const aviso = nodo("div", variante ? "sync-toast " + variante : "sync-toast");
+
+  const marca = nodo("span", "sync-toast-icon");
+  marca.innerHTML = icono(simbolo, "icon-lg");
+  aviso.appendChild(marca);
+
+  const contenido = nodo("div", "sync-toast-content");
+  contenido.appendChild(nodo("p", "sync-toast-title", titulo));
+  if (cuerpo) contenido.appendChild(nodo("p", "sync-toast-body", cuerpo));
+  aviso.appendChild(contenido);
+
+  contenedor.appendChild(aviso);
+
+  setTimeout(() => {
+    aviso.classList.add("fade-out");
+    setTimeout(() => aviso.remove(), TOAST_SALIDA);
+  }, TOAST_DURACION);
+}
+
+// ==========================================================================
+// 2. ESTADO DE RED Y PETICIONES CON TIEMPO LÍMITE (Requisitos 3.7 y 10.7)
+// ==========================================================================
+
+const TIEMPO_LIMITE = 10000;
+const reintentosPendientes = new Map();
+
+function enLinea() {
+  return typeof navigator.onLine === "boolean" ? navigator.onLine : true;
+}
+
+// Los reintentos remotos esperan a que vuelva la conexión.
+function aplazarHastaConexion(clave, tarea) {
+  reintentosPendientes.set(clave, tarea);
+}
+
+function ejecutarReintentos() {
+  const tareas = Array.from(reintentosPendientes.entries());
+  reintentosPendientes.clear();
+  tareas.forEach(([clave, tarea]) => {
+    try {
+      tarea();
+    } catch (err) {
+      aplazarHastaConexion(clave, tarea);
+    }
+  });
+}
+
+// fetch con AbortController y 10 s de límite.
+async function pedir(url, opciones) {
+  const controlador = new AbortController();
+  const reloj = setTimeout(() => controlador.abort(), TIEMPO_LIMITE);
+  try {
+    const respuesta = await fetch(url, Object.assign({}, opciones, { signal: controlador.signal }));
+    if (!respuesta.ok) throw new Error("HTTP " + respuesta.status);
+    return respuesta;
+  } finally {
+    clearTimeout(reloj);
+  }
+}
+
+// Límite de tiempo para promesas que no exponen señal de aborto.
+function conLimite(promesa, ms) {
+  const espera = typeof ms === "number" ? ms : TIEMPO_LIMITE;
+  return new Promise((resolver, rechazar) => {
+    const reloj = setTimeout(() => rechazar(new Error("Tiempo de espera agotado")), espera);
+    Promise.resolve(promesa).then(
+      (valor) => { clearTimeout(reloj); resolver(valor); },
+      (error) => { clearTimeout(reloj); rechazar(error); }
+    );
+  });
+}
+
+function avisarFuenteCaida(fuente, clave) {
+  avisar({
+    titulo: "Datos incompletos",
+    cuerpo: "No pudimos consultar " + fuente + ". Se muestra el catálogo local disponible y puede estar incompleto.",
+    tipo: "alerta",
+    simbolo: "alerta",
+    clave: clave
+  });
+}
+
+// ==========================================================================
+// 3. ALMACENAMIENTO LOCAL DEFENSIVO (Requisito 10.8)
+// ==========================================================================
+
+const CLAVE_RESPALDO = "vendaval_custom_spaces";
+
+function leerAlmacen(clave) {
+  try {
+    return window.localStorage ? window.localStorage.getItem(clave) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function escribirAlmacen(clave, valor) {
+  try {
+    if (!window.localStorage) return false;
+    window.localStorage.setItem(clave, valor);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// ==========================================================================
+// 4. CATÁLOGO BASE DE ESPACIOS PÚBLICOS CULTURALES
+// ==========================================================================
+
 const spacesData = [
   // Municipio: Aguascalientes
   {
@@ -447,378 +680,640 @@ const spacesData = [
   }
 ];
 
-// Helper para atributos de confort e hidratación por espacio (respeta datos explícitos reales)
+// Atributos de confort e hidratación: respeta los datos explícitos y solo
+// completa lo que falta (los registros remotos llegan incompletos a veces).
 function normalizeSpaceComfort(space) {
   if (!space) return space;
   if (space.hasWater === undefined) {
     space.hasWater = true;
   }
   if (!space.waterType) {
-    space.waterType = space.hasWater ? "Bebedero / Dispensador de Agua Potable" : "Sin punto público de agua";
+    space.waterType = space.hasWater
+      ? "Bebedero o dispensador de agua potable"
+      : "Sin punto público de agua";
   }
   if (space.hasAC === undefined) {
     space.hasAC = ["Teatro", "Galería de Arte", "Centro Cultural"].includes(space.type);
   }
   if (!space.shadeLevel) {
-    space.shadeLevel = (space.type === "Casa de Cultura" || space.type === "Centro Comunitario") ? "Alta" : "Media";
+    space.shadeLevel = (space.type === "Casa de Cultura" || space.type === "Centro Comunitario")
+      ? "Alta"
+      : "Media";
   }
   if (!space.climateComfort) {
-    space.climateComfort = space.hasWater 
-      ? (space.hasAC ? "Punto de agua potable gratis y aire acondicionado." : "Acceso libre a agua potable y sombra natural.")
+    space.climateComfort = space.hasWater
+      ? (space.hasAC
+        ? "Punto de agua potable gratis y aire acondicionado."
+        : "Acceso libre a agua potable y sombra natural.")
       : "Espacio techado adecuado para resguardo contra clima severo.";
   }
   return space;
 }
 
-// Normalizar lista estática base
 spacesData.forEach(normalizeSpaceComfort);
 
-// --- Supabase Client Initialization ---
+// ==========================================================================
+// 5. COMPOSICIÓN DEL CATÁLOGO ACTIVO
+//    base incorporada + base remota + respaldo local + hallazgos de sesión.
+//    Duplicado = mismo id o coordenadas a menos de 5x10^-4 grados (Req. 3.5).
+// ==========================================================================
+
+const TOLERANCIA_DUPLICADO = 5e-4;
+
+function espacioValido(space) {
+  return Boolean(space) && Boolean(space.name) &&
+    !isNaN(parseFloat(space.lat)) && !isNaN(parseFloat(space.lng));
+}
+
+function mismoEspacio(a, b) {
+  if (!a || !b) return false;
+  if (a.id !== undefined && b.id !== undefined && a.id !== null && b.id !== null && a.id === b.id) {
+    return true;
+  }
+  return Math.abs(parseFloat(a.lat) - parseFloat(b.lat)) < TOLERANCIA_DUPLICADO &&
+    Math.abs(parseFloat(a.lng) - parseFloat(b.lng)) < TOLERANCIA_DUPLICADO;
+}
+
+let espaciosRemotos = [];   // registros de la base remota
+let espaciosLocales = [];   // respaldo del navegador, pendiente de sincronizar
+let espaciosSesion = [];    // hallazgos de la lista de Google Maps sin registro remoto
+let activeSpacesList = [];
+
+function cargarRespaldoLocal() {
+  const guardado = leerAlmacen(CLAVE_RESPALDO);
+  if (!guardado) return;
+  try {
+    const analizado = JSON.parse(guardado);
+    if (Array.isArray(analizado)) {
+      espaciosLocales = analizado.filter(espacioValido);
+    }
+  } catch (err) {
+    espaciosLocales = [];
+    avisar({
+      titulo: "Respaldo local ilegible",
+      cuerpo: "Los espacios guardados en este navegador no se pudieron leer. Se muestra el catálogo base.",
+      tipo: "alerta",
+      simbolo: "alerta",
+      clave: "respaldo-ilegible"
+    });
+  }
+}
+
+function persistirRespaldoLocal() {
+  if (espaciosLocales.length === 0) {
+    return escribirAlmacen(CLAVE_RESPALDO, "[]");
+  }
+  return escribirAlmacen(CLAVE_RESPALDO, JSON.stringify(espaciosLocales));
+}
+
+// La cercanía de coordenadas solo indica duplicado entre orígenes distintos:
+// dentro de un mismo origen hay recintos vecinos que comparten inmueble
+// (Galería Benjamín Manzo e Instituto Cultural, Casa Terán y Centro Ángel),
+// y ahí manda el identificador.
+function recomponerCatalogo() {
+  const resultado = [];
+
+  const agregarOrigen = (lista) => {
+    const corte = resultado.length;
+    lista.forEach((space) => {
+      if (!espacioValido(space)) return;
+
+      const mismoOrigen = resultado.slice(corte);
+      const yaEstaPorId = mismoOrigen.some(
+        (otro) => otro.id !== undefined && otro.id !== null && otro.id === space.id
+      );
+      if (yaEstaPorId) return;
+
+      const origenesPrevios = resultado.slice(0, corte);
+      if (origenesPrevios.some((otro) => mismoEspacio(otro, space))) return;
+
+      resultado.push(normalizeSpaceComfort(space));
+    });
+  };
+
+  agregarOrigen(spacesData);
+  agregarOrigen(espaciosRemotos);
+  agregarOrigen(espaciosLocales);
+  agregarOrigen(espaciosSesion);
+  activeSpacesList = resultado;
+
+  // El respaldo local deja de guardarse cuando el mismo espacio ya está
+  // disponible en la base remota (Requisito 3.10).
+  const restantes = espaciosLocales.filter(
+    (local) => !espaciosRemotos.some((remoto) => mismoEspacio(remoto, local))
+  );
+  if (restantes.length !== espaciosLocales.length) {
+    espaciosLocales = restantes;
+    persistirRespaldoLocal();
+  }
+}
+
+// Refresco completo de la interfaz tras cualquier cambio en el catálogo.
+function refrescarCatalogo() {
+  recomponerCatalogo();
+  updateStatsTargets();
+  filterData();
+  if (map) switchMapLayer(activeMapLayer);
+}
+
+cargarRespaldoLocal();
+recomponerCatalogo();
+
+// ==========================================================================
+// 6. BASE REMOTA (Supabase, cliente cargado desde el HTML)
+// ==========================================================================
+
 const SUPABASE_URL = "https://ebjejctuuhvmjmevabjh.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImViamVqY3R1dWh2bWptZXZhYmpoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMzg4NDksImV4cCI6MjA5ODkxNDg0OX0.MCVJau8KDz_xV1iwakVW4wpKD_MeMGan3aWY3cGE6g0";
+const TABLA_ESPACIOS = "espacios_culturales";
+
 let supabaseClient = null;
 try {
-  if (window.supabase) {
+  if (window.supabase && typeof window.supabase.createClient === "function") {
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   }
 } catch (err) {
-  console.error("Failed to initialize Supabase client:", err);
+  supabaseClient = null;
 }
 
-// --- Load Custom Spaces from LocalStorage (as offline fallback) ---
-let customSpaces = [];
-try {
-  const stored = localStorage.getItem("vendaval_custom_spaces");
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    if (Array.isArray(parsed)) {
-      // Filter out invalid spaces to prevent map crashes
-      customSpaces = parsed.filter(s => s && s.name && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.lng)));
-    }
+function completarEspacio(space) {
+  if (!space.mapQuery) {
+    space.mapQuery = encodeURIComponent(
+      space.name + " " + (space.municipio || "Aguascalientes") + " Aguascalientes"
+    );
   }
-} catch (e) {
-  console.error("Error reading custom spaces from localStorage", e);
+  return normalizeSpaceComfort(space);
 }
 
-let activeSpacesList = [...spacesData, ...customSpaces];
+// Solo los registros marcados como remotos se actualizan en la base remota.
+function prepararEspacioRemoto(space) {
+  const listo = completarEspacio(space);
+  listo.origenRemoto = true;
+  delete listo.pendienteSync;
+  return listo;
+}
 
-// --- Supabase Async Fetcher ---
 async function loadSpacesFromSupabase() {
   if (!supabaseClient) return;
+  if (!enLinea()) {
+    aplazarHastaConexion("supabase-catalogo", loadSpacesFromSupabase);
+    return;
+  }
   try {
-    const { data, error } = await supabaseClient
-      .from("espacios_culturales")
-      .select("*")
-      .order("id", { ascending: true });
-    
+    const consulta = supabaseClient.from(TABLA_ESPACIOS).select("*").order("id", { ascending: true });
+    const { data, error } = await conLimite(consulta);
     if (error) throw error;
-    
-    if (data && data.length > 0) {
-      // Merge: keep static spacesData as the base, add Supabase entries that are not duplicates
-      const staticIds = new Set(spacesData.map(s => s.id));
-      const supabaseExtras = data.filter(s => !staticIds.has(s.id));
-      
-      // Ensure all Supabase entries have mapQuery & comfort normalization
-      supabaseExtras.forEach(s => {
-        if (!s.mapQuery) {
-          s.mapQuery = encodeURIComponent(s.name + " " + s.municipio + " Aguascalientes");
-        }
-        normalizeSpaceComfort(s);
-      });
-      
-      activeSpacesList = [...spacesData, ...supabaseExtras];
-      
-      // Refresh user interface & map layers
-      updateStatsTargets();
-      filterData();
-      if (map) {
-        switchMapLayer(activeMapLayer);
-        setTimeout(() => map.invalidateSize(), 200);
-      }
+
+    if (Array.isArray(data) && data.length > 0) {
+      espaciosRemotos = data.filter(espacioValido).map(prepararEspacioRemoto);
+      refrescarCatalogo();
+      if (map) setTimeout(() => map.invalidateSize(), 200);
     }
   } catch (err) {
-    console.error("Error loading spaces from Supabase:", err);
+    avisarFuenteCaida("la base de datos remota", "supabase-catalogo");
+    if (!enLinea()) aplazarHastaConexion("supabase-catalogo", loadSpacesFromSupabase);
   }
 }
 
-// --- Supabase Realtime Subscription ---
 function subscribeToSpacesRealtime() {
-  if (!supabaseClient) return;
+  if (!supabaseClient || typeof supabaseClient.channel !== "function") return;
   try {
     supabaseClient
-      .channel('public:espacios_culturales')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'espacios_culturales' }, payload => {
-        console.log('Realtime insert received:', payload);
-        const newSpace = payload.new;
-        
-        // Evitar duplicaciones
-        const exists = activeSpacesList.some(s => s.id === newSpace.id);
-        if (!exists) {
-          if (!newSpace.mapQuery) {
-            newSpace.mapQuery = encodeURIComponent(newSpace.name + " " + newSpace.municipio + " Aguascalientes");
-          }
-          normalizeSpaceComfort(newSpace);
-          activeSpacesList.push(newSpace);
-          updateStatsTargets();
-          filterData();
-          if (map) switchMapLayer(activeMapLayer);
-          showSyncNotification(newSpace.name);
+      .channel("public:" + TABLA_ESPACIOS)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: TABLA_ESPACIOS },
+        (payload) => {
+          const nuevo = payload && payload.new;
+          if (!espacioValido(nuevo)) return;
+          if (espaciosRemotos.some((otro) => mismoEspacio(otro, nuevo))) return;
+          espaciosRemotos.push(prepararEspacioRemoto(nuevo));
+          refrescarCatalogo();
+          avisar({
+            titulo: "Espacio sincronizado",
+            cuerpo: nuevo.name + " se añadió al directorio y al mapa.",
+            tipo: "exito",
+            simbolo: "sincronizar"
+          });
         }
-      })
-      .subscribe((status) => {
-        console.log("Supabase Realtime subscription status:", status);
-      });
+      )
+      .subscribe();
   } catch (err) {
-    console.error("Failed to set up Realtime subscription:", err);
+    avisar({
+      titulo: "Sincronización en vivo no disponible",
+      cuerpo: "Los espacios nuevos aparecerán al recargar o al sincronizar manualmente.",
+      tipo: "alerta",
+      simbolo: "alerta",
+      clave: "realtime"
+    });
   }
 }
 
-// --- Toast Sincronización Notificación ---
-function showSyncNotification(name) {
-  let container = document.getElementById("toast-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "toast-container";
-    container.style.position = "fixed";
-    container.style.bottom = "24px";
-    container.style.right = "24px";
-    container.style.zIndex = "9999";
-    container.style.display = "flex";
-    container.style.flexDirection = "column";
-    container.style.gap = "10px";
-    container.style.pointerEvents = "none";
-    document.body.appendChild(container);
+// Reintenta el alta remota de los espacios que solo viven en este navegador.
+async function sincronizarPendientes() {
+  if (!supabaseClient || !enLinea()) return;
+  const pendientes = espaciosLocales.filter((space) => space.pendienteSync);
+  if (pendientes.length === 0) return;
+
+  let subidos = 0;
+  for (const space of pendientes) {
+    const carga = cargaRemota(space);
+    try {
+      const consulta = supabaseClient.from(TABLA_ESPACIOS).insert([carga]).select();
+      const { data, error } = await conLimite(consulta);
+      if (error) throw error;
+      if (data && data[0]) {
+        espaciosRemotos.push(prepararEspacioRemoto(data[0]));
+        espaciosLocales = espaciosLocales.filter((otro) => otro !== space);
+        subidos += 1;
+      }
+    } catch (err) {
+      break;
+    }
   }
-  
-  const toast = document.createElement("div");
-  toast.className = "sync-toast";
-  toast.innerHTML = `
-    <div class="sync-toast-icon">🔄</div>
-    <div class="sync-toast-content">
-      <div class="sync-toast-title">¡Espacio Sincronizado!</div>
-      <div class="sync-toast-body"><strong>${name}</strong> se ha añadido al mapa.</div>
-    </div>
-  `;
-  
-  container.appendChild(toast);
-  
-  setTimeout(() => {
-    toast.classList.add("fade-out");
-    setTimeout(() => toast.remove(), 400);
-  }, 4500);
+  if (subidos > 0) {
+    persistirRespaldoLocal();
+    refrescarCatalogo();
+    avisar({
+      titulo: "Respaldo local sincronizado",
+      cuerpo: subidos + (subidos === 1 ? " espacio pendiente" : " espacios pendientes") + " ya están en la base remota.",
+      tipo: "exito",
+      simbolo: "sincronizar"
+    });
+  }
 }
 
-// --- Google Maps Live Shared List Sync Engine ---
-const OFFICIAL_GMAPS_LIST_URL = "https://www.google.com/maps/@22.0409642,-102.6739162,120170m/data=!3m1!1e3!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D";
+// Campos que acepta la tabla remota (sin banderas internas de la interfaz).
+function cargaRemota(space) {
+  return {
+    name: space.name,
+    address: space.address,
+    phone: space.phone,
+    type: space.type,
+    municipio: space.municipio,
+    lat: space.lat,
+    lng: space.lng,
+    mapQuery: space.mapQuery,
+    hasWater: space.hasWater,
+    hasAC: space.hasAC,
+    shadeLevel: space.shadeLevel,
+    climateComfort: space.climateComfort
+  };
+}
 
-async function syncGoogleMapsList(userInitiated = false) {
-  const syncBtn1 = document.getElementById("syncGmapsBtn");
-  const syncBtn2 = document.getElementById("syncGmapsBtnMap");
-  
-  if (syncBtn1 && userInitiated) syncBtn1.innerHTML = `⏳ Sincronizando...`;
-  if (syncBtn2 && userInitiated) syncBtn2.innerHTML = `⏳ Sincronizando...`;
+window.addEventListener("offline", () => {
+  avisar({
+    titulo: "Sin conexión",
+    cuerpo: "El buscador y los filtros siguen operando con el catálogo disponible. Los reintentos remotos esperan a que vuelva la red.",
+    tipo: "alerta",
+    simbolo: "alerta",
+    clave: "sin-conexion",
+    silenciarMs: 15000
+  });
+  cancelarSyncFondo();
+});
+
+window.addEventListener("online", () => {
+  avisar({
+    titulo: "Conexión restablecida",
+    cuerpo: "Reanudamos las consultas remotas pendientes.",
+    tipo: "exito",
+    simbolo: "sincronizar",
+    clave: "con-conexion",
+    silenciarMs: 15000
+  });
+  ejecutarReintentos();
+  sincronizarPendientes();
+  programarSyncFondo();
+});
+
+// ==========================================================================
+// 7. SINCRONIZACIÓN CON LA LISTA COMPARTIDA DE GOOGLE MAPS
+// ==========================================================================
+
+// Marcas pictográficas que aparecen en las notas del listado externo. Se
+// comparan contra ese texto ajeno y nunca se muestran en la interfaz.
+const MARCAS_NOTA = {
+  agua: ["\u{1F6B0}", "\u{1F4A7}"],
+  clima: ["\u2744"],
+  sombra: ["\u{1F333}"],
+  biblioteca: ["\u{1F4DA}"],
+  teatro: ["\u{1F3AD}"],
+  galeria: ["\u{1F5BC}"]
+};
+
+function notaIncluye(nota, palabras, marcas) {
+  const encontrado = palabras.some((palabra) => nota.includes(palabra));
+  if (encontrado) return true;
+  return Array.isArray(marcas) ? marcas.some((marca) => nota.includes(marca)) : false;
+}
+
+function clasificarNota(nota) {
+  const texto = String(nota || "").toLowerCase();
+
+  const hasWater = notaIncluye(
+    texto,
+    ["agua", "bebedero", "dispensador", "hidratac", "potable"],
+    MARCAS_NOTA.agua
+  );
+
+  const hasAC = notaIncluye(
+    texto,
+    ["a/c", "clima", "aire", "acondicionado"],
+    MARCAS_NOTA.clima
+  );
+
+  let shadeLevel = "Media";
+  if (notaIncluye(texto, ["sombra alta", "arbolado", "mucha sombra"], MARCAS_NOTA.sombra)) {
+    shadeLevel = "Alta";
+  } else if (notaIncluye(texto, ["sombra baja", "despejado", "soleado"], null)) {
+    shadeLevel = "Baja";
+  }
+
+  let type = "Centro Cultural";
+  if (notaIncluye(texto, ["biblioteca"], MARCAS_NOTA.biblioteca)) {
+    type = "Biblioteca";
+  } else if (notaIncluye(texto, ["teatro"], MARCAS_NOTA.teatro)) {
+    type = "Teatro";
+  } else if (notaIncluye(texto, ["galería", "galeria", "museo"], MARCAS_NOTA.galeria)) {
+    type = "Galería de Arte";
+  } else if (notaIncluye(texto, ["comunitario", "comuna"], null)) {
+    type = "Centro Comunitario";
+  } else if (notaIncluye(texto, ["casa de cultura", "casa cultura"], null)) {
+    type = "Casa de Cultura";
+  }
+
+  return { hasWater, hasAC, shadeLevel, type };
+}
+
+const SYNC_INTERVALO = 5 * 60 * 1000;   // Requisito 5.9: 5 minutos como mínimo
+let syncTemporizador = null;
+let syncUltimoInicio = 0;
+let syncEnCurso = false;
+
+function cancelarSyncFondo() {
+  if (syncTemporizador !== null) {
+    clearTimeout(syncTemporizador);
+    syncTemporizador = null;
+  }
+}
+
+// Requisito 5.8: nada de peticiones mientras la pestaña está oculta.
+function programarSyncFondo() {
+  cancelarSyncFondo();
+  if (document.visibilityState === "hidden") return;
+  const espera = Math.max(0, SYNC_INTERVALO - (Date.now() - syncUltimoInicio));
+  syncTemporizador = setTimeout(ejecutarSyncFondo, espera);
+}
+
+async function ejecutarSyncFondo() {
+  syncTemporizador = null;
+  if (document.visibilityState === "hidden") return;
+  if (!enLinea()) {
+    aplazarHastaConexion("sync-fondo", programarSyncFondo);
+    return;
+  }
+  syncUltimoInicio = Date.now();
+  await syncGoogleMapsList(false);
+  programarSyncFondo();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    cancelarSyncFondo();
+  } else {
+    programarSyncFondo();
+  }
+});
+
+function rotularBotonesSync(sincronizando) {
+  const principal = $("syncGmapsBtn");
+  const mapa = $("syncGmapsBtnMap");
+  if (principal) {
+    principal.innerHTML = sincronizando
+      ? icono("reloj") + "Sincronizando"
+      : icono("sincronizar") + "Sincronizar Google Maps";
+    principal.setAttribute("aria-busy", sincronizando ? "true" : "false");
+  }
+  if (mapa) {
+    mapa.innerHTML = sincronizando
+      ? icono("reloj") + "Sincronizando"
+      : icono("sincronizar") + "Sincronizar en vivo";
+    mapa.setAttribute("aria-busy", sincronizando ? "true" : "false");
+  }
+}
+
+async function descargarListaGmaps() {
+  const listaApi = "https://www.google.com/maps/preview/entitylist/getlist?authuser=0&hl=es&gl=mx&pb=!1m1!1sGzNGWQCSTaKUCoHh621-3g!2e2!3e2!4i500";
+  const puentes = [
+    "https://api.allorigins.win/raw?url=" + encodeURIComponent(listaApi),
+    "https://corsproxy.io/?" + encodeURIComponent(listaApi)
+  ];
+  for (const puente of puentes) {
+    try {
+      const respuesta = await pedir(puente);
+      const texto = await respuesta.text();
+      if (texto && texto.length > 200) return texto;
+    } catch (err) {
+      // Se intenta el siguiente puente; el aviso visible llega al final.
+    }
+  }
+  return "";
+}
+
+function lugaresDeLista(textoCrudo) {
+  let limpio = String(textoCrudo).trim();
+  if (limpio.startsWith(")]}'")) {
+    limpio = limpio.substring(4).trim();
+  }
+  const analizado = JSON.parse(limpio);
+  const info = Array.isArray(analizado) ? analizado[0] : null;
+  return (info && info[8]) || [];
+}
+
+async function syncGoogleMapsList(userInitiated) {
+  if (syncEnCurso) return;
+
+  if (!enLinea()) {
+    if (userInitiated) {
+      avisar({
+        titulo: "Sin conexión",
+        cuerpo: "La sincronización con Google Maps se reanudará cuando vuelva la red.",
+        tipo: "alerta",
+        simbolo: "alerta",
+        clave: "sync-sin-red"
+      });
+    }
+    aplazarHastaConexion("sync-gmaps", () => syncGoogleMapsList(false));
+    return;
+  }
+
+  syncEnCurso = true;
+  syncUltimoInicio = Date.now();
+  if (userInitiated) rotularBotonesSync(true);
+
+  let agregados = 0;
+  let actualizados = 0;
+  let fallo = false;
 
   try {
-    const listApiUrl = "https://www.google.com/maps/preview/entitylist/getlist?authuser=0&hl=es&gl=mx&pb=!1m1!1sGzNGWQCSTaKUCoHh621-3g!2e2!3e2!4i500";
-    const proxies = [
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(listApiUrl)}`,
-      `https://corsproxy.io/?${encodeURIComponent(listApiUrl)}`
-    ];
+    const texto = await descargarListaGmaps();
+    if (!texto) throw new Error("Lista no disponible");
 
-    let responseText = "";
-    for (const p of proxies) {
-      try {
-        const res = await fetch(p);
-        if (res.ok) {
-          responseText = await res.text();
-          if (responseText && responseText.length > 200) break;
-        }
-      } catch (e) {
-        console.warn("Proxy attempt failed:", p, e);
-      }
-    }
+    const lugares = lugaresDeLista(texto);
 
-    let addedCount = 0;
-    let updatedCount = 0;
+    for (const lugar of lugares) {
+      if (!lugar || lugar.length < 3) continue;
 
-    if (responseText) {
-      let cleanText = responseText.trim();
-      if (cleanText.startsWith(")]}'")) {
-        cleanText = cleanText.substring(4).trim();
-      }
-      
-      const parsedData = JSON.parse(cleanText);
-      const listInfo = parsedData[0];
-      const places = listInfo[8] || [];
+      const name = lugar[2] || "Espacio de la lista de Google Maps";
+      const nota = lugar[3] || "";
+      const coordenadas = lugar[1] && lugar[1].length > 5 ? lugar[1][5] : null;
+      if (!coordenadas || coordenadas.length < 4) continue;
 
-      for (const p of places) {
-        if (!p || p.length < 3) continue;
-        
-        const name = p[2] || "Nuevo Espacio Google Maps";
-        const note = p[3] || "";
-        
-        const coordsArray = p[1] && p[1].length > 5 ? p[1][5] : null;
-        if (!coordsArray || coordsArray.length < 4) continue;
-        
-        const lat = parseFloat(coordsArray[2]);
-        const lng = parseFloat(coordsArray[3]);
-        if (isNaN(lat) || isNaN(lng)) continue;
+      const lat = parseFloat(coordenadas[2]);
+      const lng = parseFloat(coordenadas[3]);
+      if (isNaN(lat) || isNaN(lng)) continue;
 
-        const noteLower = note.toLowerCase();
-        
-        // Bebederos / dispensadores de agua
-        const hasWater = noteLower.includes("agua") || 
-                         noteLower.includes("bebedero") || 
-                         noteLower.includes("dispensador") || 
-                         noteLower.includes("hidratac") || 
-                         noteLower.includes("🚰") || 
-                         noteLower.includes("💧") ||
-                         noteLower.includes("potable");
-                         
-        // Aire acondicionado / Climatización
-        const hasAC = noteLower.includes("a/c") || 
-                      noteLower.includes("ac") || 
-                      noteLower.includes("clima") || 
-                      noteLower.includes("aire") || 
-                      noteLower.includes("acondicionado") ||
-                      noteLower.includes("❄️");
+      const rasgos = clasificarNota(nota);
+      const climateComfort = nota || (rasgos.hasWater
+        ? (rasgos.hasAC
+          ? "Punto de agua potable gratis y aire acondicionado."
+          : "Acceso libre a agua potable y sombra natural.")
+        : "Espacio techado adecuado para resguardo contra clima severo.");
 
-        // Nivel de Sombra
-        let shadeLevel = "Media";
-        if (noteLower.includes("sombra alta") || noteLower.includes("arbolado") || noteLower.includes("mucha sombra") || noteLower.includes("🌳")) {
-          shadeLevel = "Alta";
-        } else if (noteLower.includes("sombra baja") || noteLower.includes("despejado") || noteLower.includes("soleado")) {
-          shadeLevel = "Baja";
-        }
+      const candidato = {
+        name: name,
+        address: "Aguascalientes",
+        phone: "No disponible",
+        type: rasgos.type,
+        municipio: "Aguascalientes",
+        lat: lat,
+        lng: lng,
+        mapQuery: encodeURIComponent(name + " Aguascalientes"),
+        hasWater: rasgos.hasWater,
+        hasAC: rasgos.hasAC,
+        shadeLevel: rasgos.shadeLevel,
+        climateComfort: climateComfort
+      };
 
-        // Tipo de Recinto
-        let type = "Centro Cultural";
-        if (noteLower.includes("biblioteca") || noteLower.includes("📚")) {
-          type = "Biblioteca";
-        } else if (noteLower.includes("teatro") || noteLower.includes("🎭")) {
-          type = "Teatro";
-        } else if (noteLower.includes("galería") || noteLower.includes("museo") || noteLower.includes("🖼️") || noteLower.includes("galeria")) {
-          type = "Galería de Arte";
-        } else if (noteLower.includes("comunitario") || noteLower.includes("comuna")) {
-          type = "Centro Comunitario";
-        } else if (noteLower.includes("casa de cultura") || noteLower.includes("casa cultura")) {
-          type = "Casa de Cultura";
-        }
+      const existente = activeSpacesList.find((space) => mismoEspacio(space, candidato));
 
-        const climateComfort = note || (hasWater 
-          ? (hasAC ? "Punto de agua potable gratis y aire acondicionado." : "Acceso libre a agua potable y sombra natural.")
-          : "Espacio techado adecuado para resguardo contra clima severo.");
-
-        const spacePayload = {
-          name: name,
-          address: "Aguascalientes",
-          phone: "No disponible",
-          type: type,
-          municipio: "Aguascalientes",
-          lat: lat,
-          lng: lng,
-          mapQuery: encodeURIComponent(name + " Aguascalientes"),
-          hasWater: hasWater,
-          hasAC: hasAC,
-          shadeLevel: shadeLevel,
-          climateComfort: climateComfort
-        };
-
-        const existingIndex = activeSpacesList.findIndex(s => 
-          Math.abs(s.lat - lat) < 0.0005 && Math.abs(s.lng - lng) < 0.0005
-        );
-
-        if (existingIndex === -1) {
-          if (supabaseClient) {
-            try {
-              const { data } = await supabaseClient.from("espacios_culturales").insert([spacePayload]).select();
-              if (data && data[0]) {
-                activeSpacesList.push(data[0]);
-              } else {
-                spacePayload.id = Date.now() + Math.floor(Math.random()*1000);
-                activeSpacesList.push(spacePayload);
-              }
-            } catch (err) {
-              spacePayload.id = Date.now() + Math.floor(Math.random()*1000);
-              activeSpacesList.push(spacePayload);
-            }
-          } else {
-            spacePayload.id = Date.now() + Math.floor(Math.random()*1000);
-            activeSpacesList.push(spacePayload);
+      if (!existente) {
+        let guardado = null;
+        if (supabaseClient) {
+          try {
+            const consulta = supabaseClient.from(TABLA_ESPACIOS).insert([candidato]).select();
+            const { data, error } = await conLimite(consulta);
+            if (error) throw error;
+            if (data && data[0]) guardado = data[0];
+          } catch (err) {
+            guardado = null;
           }
-          addedCount++;
+        }
+        if (guardado) {
+          espaciosRemotos.push(prepararEspacioRemoto(guardado));
         } else {
-          const existing = activeSpacesList[existingIndex];
-          if (existing.hasWater !== hasWater || existing.hasAC !== hasAC || existing.climateComfort !== climateComfort || existing.shadeLevel !== shadeLevel || existing.type !== type) {
-            existing.hasWater = hasWater;
-            existing.hasAC = hasAC;
-            existing.shadeLevel = shadeLevel;
-            existing.climateComfort = climateComfort;
-            existing.type = type;
+          candidato.id = Date.now() + Math.floor(Math.random() * 1000);
+          espaciosSesion.push(completarEspacio(candidato));
+        }
+        agregados += 1;
+      } else if (
+        existente.hasWater !== rasgos.hasWater ||
+        existente.hasAC !== rasgos.hasAC ||
+        existente.shadeLevel !== rasgos.shadeLevel ||
+        existente.type !== rasgos.type ||
+        existente.climateComfort !== climateComfort
+      ) {
+        existente.hasWater = rasgos.hasWater;
+        existente.hasAC = rasgos.hasAC;
+        existente.shadeLevel = rasgos.shadeLevel;
+        existente.type = rasgos.type;
+        existente.climateComfort = climateComfort;
 
-            if (supabaseClient && existing.id && typeof existing.id === 'number') {
-              try {
-                await supabaseClient.from("espacios_culturales").update({
-                  hasWater: hasWater,
-                  hasAC: hasAC,
-                  shadeLevel: shadeLevel,
-                  climateComfort: climateComfort,
-                  type: type
-                }).eq('id', existing.id);
-              } catch (err) {
-                console.error("Error updating Supabase space:", err);
-              }
-            }
-            updatedCount++;
+        if (supabaseClient && existente.origenRemoto && typeof existente.id === "number") {
+          try {
+            const consulta = supabaseClient
+              .from(TABLA_ESPACIOS)
+              .update({
+                hasWater: rasgos.hasWater,
+                hasAC: rasgos.hasAC,
+                shadeLevel: rasgos.shadeLevel,
+                type: rasgos.type,
+                climateComfort: climateComfort
+              })
+              .eq("id", existente.id);
+            await conLimite(consulta);
+          } catch (err) {
+            // El cambio queda aplicado en pantalla aunque el remoto falle.
           }
         }
+        actualizados += 1;
       }
-    }
-
-    if (addedCount > 0 || updatedCount > 0) {
-      updateStatsTargets();
-      filterData();
-      if (map) switchMapLayer(activeMapLayer);
-    }
-
-    if (userInitiated || addedCount > 0 || updatedCount > 0) {
-      let msg = "";
-      if (addedCount > 0 && updatedCount > 0) {
-        msg = `🔄 ¡Sincronizado! ${addedCount} nuevos y ${updatedCount} actualizados desde Google Maps.`;
-      } else if (addedCount > 0) {
-        msg = `🔄 ¡Sincronizado! ${addedCount} nuevas ubicaciones de Google Maps añadidas.`;
-      } else if (updatedCount > 0) {
-        msg = `🔄 ¡Sincronizado! ${updatedCount} características/descripciones actualizadas desde Google Maps.`;
-      } else {
-        msg = `✅ Características y descripciones al día con Google Maps (${activeSpacesList.length} espacios).`;
-      }
-      showSyncNotification(msg);
     }
   } catch (err) {
-    console.error("Error syncing Google Maps list:", err);
+    fallo = true;
   } finally {
-    if (syncBtn1) syncBtn1.innerHTML = `🔄 Sincronizar Google Maps`;
-    if (syncBtn2) syncBtn2.innerHTML = `🔄 Sincronizar en Vivo`;
+    syncEnCurso = false;
+    if (userInitiated) rotularBotonesSync(false);
+  }
+
+  if (agregados > 0 || actualizados > 0) {
+    refrescarCatalogo();
+  }
+
+  if (fallo) {
+    if (userInitiated) {
+      avisar({
+        titulo: "Google Maps no respondió",
+        cuerpo: "No pudimos leer la lista compartida. Se conserva el catálogo actual, que puede estar incompleto.",
+        tipo: "error",
+        simbolo: "alerta"
+      });
+    } else {
+      avisarFuenteCaida("la lista compartida de Google Maps", "sync-gmaps");
+    }
+    return;
+  }
+
+  if (agregados > 0 || actualizados > 0) {
+    const partes = [];
+    if (agregados > 0) partes.push(agregados + (agregados === 1 ? " espacio nuevo" : " espacios nuevos"));
+    if (actualizados > 0) partes.push(actualizados + (actualizados === 1 ? " ficha actualizada" : " fichas actualizadas"));
+    avisar({
+      titulo: "Sincronización completada",
+      cuerpo: partes.join(" y ") + " desde la lista de Google Maps.",
+      tipo: "exito",
+      simbolo: "sincronizar"
+    });
+  } else if (userInitiated) {
+    avisar({
+      titulo: "Catálogo al día",
+      cuerpo: activeSpacesList.length + " espacios coinciden con la lista de Google Maps.",
+      tipo: "exito",
+      simbolo: "sincronizar"
+    });
   }
 }
 
-// --- 1.5 Clima, GPS y Motor de Recomendaciones Climáticas ---
+// ==========================================================================
+// 8. CLIMA, GPS Y RECOMENDACIONES DE CONFORT
+// ==========================================================================
+
 let currentWeatherData = {
   temp: 26,
   feelsLike: 27,
   humidity: 40,
   uv: "7.2",
   wind: 12,
-  description: "Cálido agradable",
   muniName: "Aguascalientes"
 };
 
-let userLocation = null; // { lat, lng }
-let activeHeatMode = 'island'; // 'island' vs 'shade'
-let activeWaterSubfilter = 'all'; // 'all', 'bebedero', 'fria', 'garrafon'
+let userLocation = null;
+let activeHeatMode = "island";
+let activeWaterSubfilter = "all";
 let waterRoutePolyline = null;
 
-// Coordenadas centrales reales de los 11 municipios de Aguascalientes
+// Coordenadas centrales de los 11 municipios de Aguascalientes
 const MUNICIPIOS_DATA = {
   "Aguascalientes": { lat: 21.8823, lng: -102.2978, weather: null },
   "Calvillo": { lat: 21.8464, lng: -102.7187, weather: null },
@@ -833,267 +1328,377 @@ const MUNICIPIOS_DATA = {
   "Tepezalá": { lat: 22.2217, lng: -102.1706, weather: null }
 };
 
-// Fórmula de Haversine para distancia GPS exacta
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Metros
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
+const CENTRO_ESTADO = { lat: 21.882, lng: -102.298 };
 
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+// Fórmula de Haversine para distancia en metros
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const f1 = lat1 * Math.PI / 180;
+  const f2 = lat2 * Math.PI / 180;
+  const df = (lat2 - lat1) * Math.PI / 180;
+  const dl = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(df / 2) * Math.sin(df / 2) +
+    Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
 }
 
-function formatDistance(meters) {
-  if (meters < 1000) return `${Math.round(meters)} m`;
-  return `${(meters / 1000).toFixed(1)} km`;
+function formatDistance(metros) {
+  if (metros < 1000) return Math.round(metros) + " m";
+  return (metros / 1000).toFixed(1) + " km";
 }
 
-// Clasificador del Índice UV
+function referenciaUsuario() {
+  return userLocation ? userLocation : CENTRO_ESTADO;
+}
+
+// Clasificación del índice UV (Requisito 3.3)
 function getUVCategory(uvValue) {
   const val = parseFloat(uvValue) || 0;
-  if (val < 3.0) {
-    return { tag: "Bajo", class: "uv-low", tip: "Bajo riesgo solar." };
-  } else if (val < 6.0) {
-    return { tag: "Moderado", class: "uv-mod", tip: "Usa gafas y bloqueador." };
-  } else if (val < 8.0) {
-    return { tag: "Alto", class: "uv-high", tip: "Busca sombra y agua." };
-  } else {
-    return { tag: "Extremo", class: "uv-extreme", tip: "Protección solar obligatoria." };
-  }
+  if (val < 3.0) return { tag: "Bajo", class: "uv-low" };
+  if (val < 6.0) return { tag: "Moderado", class: "uv-mod" };
+  if (val < 8.0) return { tag: "Alto", class: "uv-high" };
+  return { tag: "Extremo", class: "uv-extreme" };
 }
 
-// Consulta en lote dinámica de API Open-Meteo para todos los municipios
-async function fetchCurrentWeather(lat = 21.882, lng = -102.298, muniName = "Aguascalientes") {
-  try {
-    const mainUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,uv_index&timezone=auto`;
-    const res = await fetch(mainUrl);
-    if (!res.ok) throw new Error("Status " + res.status);
-    const data = await res.json();
+async function fetchCurrentWeather(lat, lng, muniName) {
+  const latitud = typeof lat === "number" ? lat : CENTRO_ESTADO.lat;
+  const longitud = typeof lng === "number" ? lng : CENTRO_ESTADO.lng;
+  const nombre = muniName || "Aguascalientes";
 
-    if (data && data.current) {
-      const c = data.current;
+  if (!enLinea()) {
+    currentWeatherData.muniName = nombre;
+    updateWeatherUI();
+    updateComfortRecommendation();
+    aplazarHastaConexion("clima", () => fetchCurrentWeather(latitud, longitud, nombre));
+    return;
+  }
+
+  try {
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + latitud +
+      "&longitude=" + longitud +
+      "&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,uv_index&timezone=auto";
+    const respuesta = await pedir(url);
+    const datos = await respuesta.json();
+
+    if (datos && datos.current) {
+      const c = datos.current;
       currentWeatherData = {
         temp: Math.round(c.temperature_2m),
         feelsLike: Math.round(c.apparent_temperature),
         humidity: Math.round(c.relative_humidity_2m),
-        uv: c.uv_index !== undefined ? Number(c.uv_index).toFixed(1) : "6.5",
+        uv: c.uv_index !== undefined && c.uv_index !== null ? Number(c.uv_index).toFixed(1) : "6.5",
         wind: Math.round(c.wind_speed_10m),
-        description: c.temperature_2m > 28 ? "Caluroso" : (c.temperature_2m < 15 ? "Fresco" : "Templado"),
-        muniName: muniName
+        muniName: nombre
       };
-      updateWeatherUI();
-      updateComfortRecommendation();
     }
-
-    await fetchMunicipiosWeather();
-  } catch (err) {
-    console.warn("Uso de datos clima locales por defecto:", err);
-    currentWeatherData.muniName = muniName;
     updateWeatherUI();
     updateComfortRecommendation();
+    await fetchMunicipiosWeather();
+  } catch (err) {
+    currentWeatherData.muniName = nombre;
+    updateWeatherUI();
+    updateComfortRecommendation();
+    avisarFuenteCaida("el servicio de clima Open-Meteo", "clima");
+    if (!enLinea()) {
+      aplazarHastaConexion("clima", () => fetchCurrentWeather(latitud, longitud, nombre));
+    }
+    await fetchMunicipiosWeather();
   }
 }
 
 async function fetchMunicipiosWeather() {
-  const keys = Object.keys(MUNICIPIOS_DATA);
-  const lats = keys.map(k => MUNICIPIOS_DATA[k].lat).join(",");
-  const lngs = keys.map(k => MUNICIPIOS_DATA[k].lng).join(",");
+  const claves = Object.keys(MUNICIPIOS_DATA);
 
-  try {
-    const multiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,uv_index&timezone=auto`;
-    const res = await fetch(multiUrl);
-    if (!res.ok) throw new Error("Multi weather status " + res.status);
-    const data = await res.json();
-
-    const dataArray = Array.isArray(data) ? data : [data];
-    dataArray.forEach((item, index) => {
-      const name = keys[index];
-      if (item && item.current && name) {
-        const cur = item.current;
-        MUNICIPIOS_DATA[name].weather = {
-          temp: Math.round(cur.temperature_2m),
-          feelsLike: Math.round(cur.apparent_temperature),
-          humidity: Math.round(cur.relative_humidity_2m),
-          uv: cur.uv_index !== undefined ? Number(cur.uv_index).toFixed(1) : "6.0",
-          wind: Math.round(cur.wind_speed_10m)
-        };
-      }
-    });
-  } catch (err) {
-    console.warn("Fallback dinámico para microclima municipal:", err);
-    keys.forEach(name => {
-      const baseTemp = currentWeatherData.temp;
-      const diff = name === 'Calvillo' ? 2 : (name === 'San José de Gracia' ? -2 : (name === 'Cosío' ? -1 : 0));
-      MUNICIPIOS_DATA[name].weather = {
-        temp: baseTemp + diff,
-        feelsLike: currentWeatherData.feelsLike + diff,
+  const estimarLocalmente = () => {
+    claves.forEach((nombre) => {
+      const diferencia = nombre === "Calvillo" ? 2
+        : (nombre === "San José de Gracia" ? -2 : (nombre === "Cosío" ? -1 : 0));
+      MUNICIPIOS_DATA[nombre].weather = {
+        temp: currentWeatherData.temp + diferencia,
+        feelsLike: currentWeatherData.feelsLike + diferencia,
         humidity: currentWeatherData.humidity,
         uv: currentWeatherData.uv,
         wind: currentWeatherData.wind
       };
     });
+  };
+
+  if (!enLinea()) {
+    estimarLocalmente();
+    return;
   }
+
+  try {
+    const lats = claves.map((k) => MUNICIPIOS_DATA[k].lat).join(",");
+    const lngs = claves.map((k) => MUNICIPIOS_DATA[k].lng).join(",");
+    const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lats + "&longitude=" + lngs +
+      "&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,uv_index&timezone=auto";
+    const respuesta = await pedir(url);
+    const datos = await respuesta.json();
+    const lista = Array.isArray(datos) ? datos : [datos];
+
+    lista.forEach((item, indice) => {
+      const nombre = claves[indice];
+      if (item && item.current && nombre) {
+        const c = item.current;
+        MUNICIPIOS_DATA[nombre].weather = {
+          temp: Math.round(c.temperature_2m),
+          feelsLike: Math.round(c.apparent_temperature),
+          humidity: Math.round(c.relative_humidity_2m),
+          uv: c.uv_index !== undefined && c.uv_index !== null ? Number(c.uv_index).toFixed(1) : "6.0",
+          wind: Math.round(c.wind_speed_10m)
+        };
+      }
+    });
+  } catch (err) {
+    estimarLocalmente();
+    avisarFuenteCaida("el microclima municipal de Open-Meteo", "clima-municipios");
+  }
+
+  if (activeMapLayer === "weather" && map) buildWeatherMapLayer();
 }
 
 function updateWeatherUI() {
-  const tempEl = document.getElementById("weatherTemp");
-  const feelsEl = document.getElementById("weatherFeels");
-  const humEl = document.getElementById("weatherHumidity");
-  const humDescEl = document.getElementById("weatherHumidityDesc");
-  const uvEl = document.getElementById("weatherUV");
-  const uvBadgeEl = document.getElementById("weatherUVBadge");
-  const windEl = document.getElementById("weatherWind");
-  const airQualityEl = document.getElementById("weatherAirQuality");
+  const tempEl = $("weatherTemp");
+  const feelsEl = $("weatherFeels");
+  const humEl = $("weatherHumidity");
+  const humDescEl = $("weatherHumidityDesc");
+  const uvEl = $("weatherUV");
+  const uvBadgeEl = $("weatherUVBadge");
+  const windEl = $("weatherWind");
+  const airQualityEl = $("weatherAirQuality");
 
-  if (tempEl) tempEl.textContent = `${currentWeatherData.temp} °C`;
-  if (feelsEl) feelsEl.textContent = `Sensación: ${currentWeatherData.feelsLike} °C`;
-  
-  if (humEl) humEl.textContent = `${currentWeatherData.humidity} %`;
+  if (tempEl) tempEl.textContent = currentWeatherData.temp + " °C";
+  if (feelsEl) feelsEl.textContent = "Sensación: " + currentWeatherData.feelsLike + " °C";
+
+  if (humEl) humEl.textContent = currentWeatherData.humidity + " %";
   if (humDescEl) {
     const hum = currentWeatherData.humidity;
-    humDescEl.textContent = hum < 30 ? "Ambiente Seco" : (hum > 65 ? "Ambiente Húmedo" : "Confort Agradable");
+    humDescEl.textContent = hum < 30 ? "Ambiente seco" : (hum > 65 ? "Ambiente húmedo" : "Confort agradable");
   }
 
   if (uvEl) uvEl.textContent = currentWeatherData.uv;
   if (uvBadgeEl) {
-    const cat = getUVCategory(currentWeatherData.uv);
-    uvBadgeEl.innerHTML = `<span class="uv-tag ${cat.class}">${cat.tag}</span>`;
+    const categoria = getUVCategory(currentWeatherData.uv);
+    uvBadgeEl.innerHTML = '<span class="uv-tag ' + categoria.class + '">' + esc(categoria.tag) + "</span>";
   }
 
-  if (windEl) windEl.textContent = `${currentWeatherData.wind} km/h`;
+  if (windEl) windEl.textContent = currentWeatherData.wind + " km/h";
   if (airQualityEl) {
-    airQualityEl.textContent = currentWeatherData.wind > 20 ? "Viento Moderado" : "Aire Limpio & Fresco";
+    airQualityEl.textContent = currentWeatherData.wind > 20 ? "Viento moderado" : "Aire limpio y fresco";
   }
 }
 
-function updateComfortRecommendation(preferredService = null) {
-  const recBadge = document.getElementById("climaRecBadge");
-  const recTitle = document.getElementById("climaRecTitle");
-  const recDesc = document.getElementById("climaRecDesc");
-  if (!recTitle) return;
+function updateComfortRecommendation(preferredService) {
+  const recBadge = $("climaRecBadge");
+  const recTitle = $("climaRecTitle");
+  const recDesc = $("climaRecDesc");
+  if (!recTitle || !recDesc) return;
 
-  const userLat = userLocation ? userLocation.lat : 21.882;
-  const userLng = userLocation ? userLocation.lng : -102.298;
+  const referencia = referenciaUsuario();
+  const ordenados = activeSpacesList
+    .map((space) => {
+      normalizeSpaceComfort(space);
+      return Object.assign({}, space, {
+        distMeters: calculateDistance(referencia.lat, referencia.lng, space.lat, space.lng)
+      });
+    })
+    .sort((a, b) => a.distMeters - b.distMeters);
 
-  const spacesWithDist = activeSpacesList.map(s => {
-    normalizeSpaceComfort(s);
-    const distMeters = calculateDistance(userLat, userLng, s.lat, s.lng);
-    return { ...s, distMeters };
-  }).sort((a, b) => a.distMeters - b.distMeters);
-
-  if (spacesWithDist.length === 0) return;
+  if (ordenados.length === 0) return;
 
   const temp = currentWeatherData.temp;
-  let bestMatch = null;
-  let titleText = "";
-  let descText = "";
+  let elegido = null;
+  let titulo = "";
+  let descripcion = "";
 
-  if (preferredService === 'water') {
-    bestMatch = spacesWithDist.find(s => s.hasWater) || spacesWithDist[0];
-    titleText = `💧 Punto de Agua Gratis más Cercano a ${formatDistance(bestMatch.distMeters)}`;
-    descText = `Te recomendamos acudir a <strong>${bestMatch.name}</strong> (${bestMatch.address}). ${bestMatch.waterType || "Cuenta con bebedero de agua potable gratuita abierta al público."}`;
-  } else if (preferredService === 'shade' || temp >= 27) {
-    bestMatch = spacesWithDist.find(s => s.hasAC || s.shadeLevel === 'Alta') || spacesWithDist[0];
-    titleText = temp >= 27 
-      ? `🔥 Clima Caluroso (${temp}°C) — Refugio Climatizado a ${formatDistance(bestMatch.distMeters)}`
-      : `❄️ Espacio Fresco con Sombra a ${formatDistance(bestMatch.distMeters)}`;
-    descText = `Te sugerimos resguardarte en <strong>${bestMatch.name}</strong>. ${bestMatch.climateComfort || "Excelente sombra y climatización de interiores."}`;
-  } else if (preferredService === 'warm' || temp <= 16) {
-    bestMatch = spacesWithDist.find(s => s.hasAC || s.type === 'Teatro' || s.type === 'Casa de Cultura') || spacesWithDist[0];
-    titleText = `🌬️ Clima Fresco (${temp}°C) — Espacio Techado a ${formatDistance(bestMatch.distMeters)}`;
-    descText = `Te recomendamos ingresar a <strong>${bestMatch.name}</strong>. Instalaciones acogedoras y protegidas del viento exterior.`;
+  if (preferredService === "water") {
+    elegido = ordenados.find((space) => space.hasWater) || ordenados[0];
+    titulo = icono("gota") + " Punto de agua gratis más cercano a " + formatDistance(elegido.distMeters);
+    descripcion = "Te recomendamos acudir a <strong>" + esc(elegido.name) + "</strong> (" +
+      esc(elegido.address) + "). " + esc(elegido.waterType);
+  } else if (preferredService === "shade" || temp >= 27) {
+    elegido = ordenados.find((space) => space.hasAC || space.shadeLevel === "Alta") || ordenados[0];
+    titulo = temp >= 27
+      ? icono("fuego") + " Clima caluroso (" + temp + " °C): refugio climatizado a " + formatDistance(elegido.distMeters)
+      : icono("arbol") + " Espacio fresco con sombra a " + formatDistance(elegido.distMeters);
+    descripcion = "Te sugerimos resguardarte en <strong>" + esc(elegido.name) + "</strong>. " +
+      esc(elegido.climateComfort);
+  } else if (preferredService === "warm" || temp <= 16) {
+    elegido = ordenados.find((space) => space.hasAC || space.type === "Teatro" || space.type === "Casa de Cultura") || ordenados[0];
+    titulo = icono("viento") + " Clima fresco (" + temp + " °C): espacio techado a " + formatDistance(elegido.distMeters);
+    descripcion = "Te recomendamos ingresar a <strong>" + esc(elegido.name) +
+      "</strong>. Instalaciones acogedoras y protegidas del viento exterior.";
   } else {
-    bestMatch = spacesWithDist[0];
-    titleText = `☀️ Clima Templado (${temp}°C) — Espacio Cultural Recomendado a ${formatDistance(bestMatch.distMeters)}`;
-    descText = `Visita <strong>${bestMatch.name}</strong> (${bestMatch.municipio}). Condiciones ambientales óptimas para tu recorrido.`;
+    elegido = ordenados[0];
+    titulo = icono("sol") + " Clima templado (" + temp + " °C): espacio cultural a " + formatDistance(elegido.distMeters);
+    descripcion = "Visita <strong>" + esc(elegido.name) + "</strong> (" + esc(elegido.municipio) +
+      "). Condiciones ambientales óptimas para tu recorrido.";
   }
 
-  if (recBadge) recBadge.textContent = userLocation ? "📍 Recomendación GPS Activa" : "☀️ Alerta Climática Ciudadana";
-  recTitle.innerHTML = titleText;
-  recDesc.innerHTML = descText;
+  if (recBadge) {
+    recBadge.innerHTML = userLocation
+      ? icono("ubicacion") + " Recomendación con GPS activo"
+      : icono("sol") + " Alerta climática ciudadana";
+  }
+  recTitle.innerHTML = titulo;
+  recDesc.innerHTML = descripcion;
+}
+
+// --- Geolocalización (Requisito 10.5) ---
+const MOTIVOS_GPS = {
+  1: {
+    titulo: "Permiso de ubicación denegado",
+    cuerpo: "Conservamos la estación municipal seleccionada y sus datos de clima. Puedes volver a intentarlo cuando quieras."
+  },
+  2: {
+    titulo: "Ubicación no disponible",
+    cuerpo: "Tu dispositivo no pudo determinar la posición. Seguimos con la estación municipal seleccionada."
+  },
+  3: {
+    titulo: "Tiempo de espera excedido",
+    cuerpo: "La ubicación tardó más de 10 segundos. Seguimos con la estación municipal seleccionada."
+  }
+};
+
+function rotularBotonGps(estado) {
+  const boton = $("gpsLocateBtn");
+  if (!boton) return;
+  if (estado === "buscando") {
+    boton.innerHTML = icono("reloj") + "Obteniendo tu ubicación";
+    boton.setAttribute("aria-busy", "true");
+    return;
+  }
+  boton.setAttribute("aria-busy", "false");
+  boton.innerHTML = estado === "activo"
+    ? icono("ubicacion") + "GPS activo"
+    : icono("ubicacion") + "Activar mi ubicación GPS";
 }
 
 function activateGPSLocation() {
-  const btn = document.getElementById("gpsLocateBtn");
-  if (btn) btn.innerHTML = `⏳ Obteniendo GPS...`;
-
-  if (!navigator.geolocation) {
-    alert("Tu navegador o dispositivo no soporta geolocalización GPS.");
-    if (btn) btn.innerHTML = `📍 Activar mi Ubicación GPS`;
+  if (!navigator.geolocation || typeof navigator.geolocation.getCurrentPosition !== "function") {
+    rotularBotonGps("inactivo");
+    avisar({
+      titulo: "Función no disponible",
+      cuerpo: "Este navegador no expone la API de geolocalización. Conservamos la estación municipal seleccionada y sus datos.",
+      tipo: "alerta",
+      simbolo: "alerta",
+      clave: "gps-no-disponible"
+    });
     return;
   }
 
+  rotularBotonGps("buscando");
+
   navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      userLocation = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      };
-
-      if (btn) btn.innerHTML = `✅ GPS Activo`;
-      fetchCurrentWeather(userLocation.lat, userLocation.lng);
-
-      if (map) {
-        map.setView([userLocation.lat, userLocation.lng], 14);
-
-        if (window.userGPSMarker) {
-          window.userGPSMarker.setLatLng([userLocation.lat, userLocation.lng]);
-        } else {
-          const userIcon = L.divIcon({
-            className: "user-gps-marker",
-            iconAnchor: [10, 10],
-            html: `<span style="background:#00f2fe; width:20px; height:20px; border-radius:50%; display:block; border:3px solid #fff; box-shadow:0 0 15px #00f2fe;"></span>`
-          });
-          window.userGPSMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
-            .bindPopup("<b>📍 Tu Ubicación Actual (GPS)</b>")
-            .addTo(map);
-        }
-        window.userGPSMarker.openPopup();
-      }
-
+    (posicion) => {
+      userLocation = { lat: posicion.coords.latitude, lng: posicion.coords.longitude };
+      rotularBotonGps("activo");
+      fetchCurrentWeather(userLocation.lat, userLocation.lng, "Tu ubicación");
+      marcarUbicacionUsuario();
       updateComfortRecommendation();
     },
-    (err) => {
-      console.warn("GPS error:", err);
-      alert("No pudimos obtener tu ubicación exacta. Usando centro de Aguascalientes.");
-      if (btn) btn.innerHTML = `📍 Activar mi Ubicación GPS`;
+    (error) => {
+      rotularBotonGps("inactivo");
+      const motivo = MOTIVOS_GPS[error && error.code] || {
+        titulo: "No pudimos obtener tu ubicación",
+        cuerpo: "Conservamos la estación municipal seleccionada y sus datos de clima."
+      };
+      // Sin reintento automático: el visitante decide si vuelve a pedirlo.
+      avisar({
+        titulo: motivo.titulo,
+        cuerpo: motivo.cuerpo,
+        tipo: "alerta",
+        simbolo: "ubicacion",
+        clave: "gps-" + (error && error.code ? error.code : "generico"),
+        silenciarMs: 5000
+      });
     },
-    { enableHighAccuracy: true, timeout: 8000 }
+    { enableHighAccuracy: true, timeout: TIEMPO_LIMITE, maximumAge: 0 }
   );
 }
 
-// --- 2. Leaflet Map Initialization ---
-let map;
-let markersGroup;
+function marcarUbicacionUsuario() {
+  if (!map || !userLocation || typeof L === "undefined") return;
+
+  if (marcadorUsuario) {
+    marcadorUsuario.setLatLng([userLocation.lat, userLocation.lng]);
+  } else {
+    const puntoHtml = '<span style="display:block;inline-size:var(--esp-3);block-size:var(--esp-3);' +
+      "background-color:var(--acento-2);border:var(--linea-2) solid var(--sup-hundida);" +
+      'border-radius:var(--radio-pil);box-shadow:var(--sombra-2);"></span>';
+    const iconoUsuario = L.divIcon({
+      className: "user-gps-marker",
+      iconAnchor: [8, 8],
+      popupAnchor: [0, -8],
+      html: puntoHtml
+    });
+    marcadorUsuario = L.marker([userLocation.lat, userLocation.lng], {
+      icon: iconoUsuario,
+      title: "Tu ubicación actual"
+    }).addTo(map);
+    marcadorUsuario.bindPopup(() => {
+      const caja = document.createElement("div");
+      const titulo = nodo("h4");
+      titulo.innerHTML = icono("ubicacion") + " Tu ubicación actual";
+      caja.appendChild(titulo);
+      caja.appendChild(nodo("p", null, "Las recomendaciones de confort se calculan desde este punto."));
+      return caja;
+    });
+  }
+
+  map.setView([userLocation.lat, userLocation.lng], 14);
+  marcadorUsuario.openPopup();
+}
+
+// ==========================================================================
+// 9. MAPA LEAFLET Y SUS CUATRO CAPAS
+// ==========================================================================
+
+let map = null;
+let markersGroup = null;
 let heatLayerGroup = null;
 let waterLayerGroup = null;
 let weatherLayerGroup = null;
-let activeMapLayer = 'spaces';
-const customMarkers = {};
+let marcadorUsuario = null;
+let activeMapLayer = "spaces";
+const customMarkers = new Map();
+
+// Tonos por tipo de recinto: mismos tokens que la leyenda de styles.css
+const TONO_TIPO = {
+  "Casa de Cultura": "--acento-2",
+  "Teatro": "--sem-calor",
+  "Centro Cultural": "--acento",
+  "Galería de Arte": "--sem-arte",
+  "Centro Comunitario": "--sem-fresco",
+  "Biblioteca": "--sem-tibio"
+};
+
+function tokenTipo(type) {
+  return TONO_TIPO[type] || "--texto-alto";
+}
 
 function initMap() {
+  const contenedor = $("leafletMap");
+  if (!contenedor) return;
+
+  if (typeof L === "undefined") {
+    avisar({
+      titulo: "Mapa no disponible",
+      cuerpo: "La biblioteca del mapa no se pudo cargar. El directorio, los filtros y el asistente climático siguen operando.",
+      tipo: "error",
+      simbolo: "alerta",
+      clave: "leaflet"
+    });
+    return;
+  }
+
   try {
-    const mapElement = document.getElementById("leafletMap");
-    if (!mapElement) {
-      console.error("Map element #leafletMap not found");
-      return;
-    }
-
-    if (typeof L === 'undefined') {
-      console.error("Leaflet library (L) is not loaded");
-      return;
-    }
-
-    map = L.map("leafletMap", {
-      scrollWheelZoom: false,
-      zoomControl: true
-    }).setView([22.0, -102.3], 9.5);
+    map = L.map("leafletMap", { scrollWheelZoom: false, zoomControl: true })
+      .setView([22.0, -102.3], 9.5);
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -1102,301 +1707,368 @@ function initMap() {
     }).addTo(map);
 
     markersGroup = L.featureGroup().addTo(map);
-    
+
     plotMapMarkers(activeSpacesList);
-    initLayerSwitcherEvents();
 
     setTimeout(() => {
       if (map) map.invalidateSize();
     }, 300);
   } catch (err) {
-    console.error("Error initializing map:", err);
+    map = null;
+    avisar({
+      titulo: "Mapa no disponible",
+      cuerpo: "No pudimos iniciar el mapa interactivo. El directorio y el asistente climático siguen operando.",
+      tipo: "error",
+      simbolo: "alerta",
+      clave: "leaflet-init"
+    });
   }
 }
 
-// Conmutador de Capas (Recintos, Calor, Agua, Clima)
+// Marca el estado activo con clase y con aria-pressed (Requisito 6.13)
+function marcarActivo(elementos, esActivo) {
+  elementos.forEach((elemento) => {
+    const activo = Boolean(esActivo(elemento));
+    elemento.classList.toggle("active", activo);
+    elemento.setAttribute("aria-pressed", activo ? "true" : "false");
+  });
+}
+
 function initLayerSwitcherEvents() {
-  const layerChips = document.querySelectorAll(".layer-chip");
-  layerChips.forEach(chip => {
+  document.querySelectorAll(".layer-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
-      const layer = chip.getAttribute("data-layer");
-      switchMapLayer(layer);
+      switchMapLayer(chip.getAttribute("data-layer"));
     });
   });
 }
 
 function switchMapLayer(layerName) {
   activeMapLayer = layerName;
-  const chips = document.querySelectorAll(".layer-chip");
-  chips.forEach(c => c.classList.toggle("active", c.getAttribute("data-layer") === layerName));
 
-  // Toggle floating overlay panels
-  const heatOverlay = document.getElementById("heatOverlayPanel");
-  const waterOverlay = document.getElementById("waterOverlayPanel");
-  const weatherOverlay = document.getElementById("weatherOverlayPanel");
+  marcarActivo(
+    Array.from(document.querySelectorAll(".layer-chip")),
+    (chip) => chip.getAttribute("data-layer") === layerName
+  );
 
-  if (heatOverlay) heatOverlay.style.display = layerName === 'heat' ? 'block' : 'none';
-  if (waterOverlay) waterOverlay.style.display = layerName === 'water' ? 'block' : 'none';
-  if (weatherOverlay) weatherOverlay.style.display = layerName === 'weather' ? 'block' : 'none';
+  // Los paneles flotantes se muestran con style.display sobre [hidden]
+  const paneles = {
+    heat: $("heatOverlayPanel"),
+    water: $("waterOverlayPanel"),
+    weather: $("weatherOverlayPanel")
+  };
+  Object.keys(paneles).forEach((clave) => {
+    if (paneles[clave]) paneles[clave].style.display = layerName === clave ? "block" : "none";
+  });
 
   if (!map) return;
 
-  if (markersGroup) map.removeLayer(markersGroup);
-  if (heatLayerGroup) map.removeLayer(heatLayerGroup);
-  if (waterLayerGroup) map.removeLayer(waterLayerGroup);
-  if (weatherLayerGroup) map.removeLayer(weatherLayerGroup);
+  [markersGroup, heatLayerGroup, waterLayerGroup, weatherLayerGroup].forEach((capa) => {
+    if (capa && map.hasLayer(capa)) map.removeLayer(capa);
+  });
 
-  if (layerName === 'spaces') {
-    markersGroup.addTo(map);
-  } else if (layerName === 'heat') {
+  if (layerName === "spaces") {
+    if (markersGroup) markersGroup.addTo(map);
+  } else if (layerName === "heat") {
     buildHeatmapLayer();
-    heatLayerGroup.addTo(map);
-  } else if (layerName === 'water') {
+    if (heatLayerGroup) heatLayerGroup.addTo(map);
+  } else if (layerName === "water") {
     buildWaterMapLayer();
-    waterLayerGroup.addTo(map);
-  } else if (layerName === 'weather') {
+    if (waterLayerGroup) waterLayerGroup.addTo(map);
+  } else if (layerName === "weather") {
     buildWeatherMapLayer();
-    weatherLayerGroup.addTo(map);
+    if (weatherLayerGroup) weatherLayerGroup.addTo(map);
   }
 }
 
-// Mapa de Calor dinámico con modos 'Isla de Calor' vs 'Confort & Sombra'
-function buildHeatmapLayer() {
-  if (heatLayerGroup && map) {
-    map.removeLayer(heatLayerGroup);
+// --- Capa de recintos ---
+function plotMapMarkers(spaces) {
+  if (!map || !markersGroup) return;
+
+  markersGroup.clearLayers();
+  customMarkers.clear();
+
+  const validos = spaces.filter(espacioValido);
+
+  validos.forEach((space) => {
+    const pinHtml = '<span style="display:block;inline-size:var(--esp-3);block-size:var(--esp-3);' +
+      "background-color:var(" + tokenTipo(space.type) + ");" +
+      "border:var(--linea-1) solid var(--sup-hundida);" +
+      "border-radius:var(--radio-pil) var(--radio-pil) 0;transform:rotate(-45deg);" +
+      'box-shadow:var(--sombra-2);"></span>';
+
+    const iconoPin = L.divIcon({
+      className: "custom-div-icon",
+      iconAnchor: [0, 14],
+      popupAnchor: [7, -14],
+      html: pinHtml
+    });
+
+    const marcador = L.marker([space.lat, space.lng], { icon: iconoPin, title: space.name });
+    marcador.bindPopup(() => popupEspacio(space));
+    markersGroup.addLayer(marcador);
+    customMarkers.set(space.id, marcador);
+  });
+
+  if (validos.length > 0) {
+    map.fitBounds(markersGroup.getBounds(), { padding: [30, 30] });
   }
+}
+
+function filaConfort(space) {
+  const fila = nodo("span", "card-comfort-row");
+  if (space.hasWater) fila.appendChild(pastilla("badge-comfort badge-water", "agua", "Agua gratis"));
+  if (space.hasAC) fila.appendChild(pastilla("badge-comfort badge-ac", "aire", "Climatización"));
+  if (space.shadeLevel === "Alta") fila.appendChild(pastilla("badge-comfort badge-shade", "arbol", "Sombra alta"));
+  if (space.pendienteSync) fila.appendChild(pastilla("space-badge", "sincronizar", "Sincronización pendiente", true));
+  return fila;
+}
+
+function botonFicha(space, clase, texto) {
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = clase;
+  boton.innerHTML = esc(texto) + icono("flecha-derecha");
+  boton.addEventListener("click", () => openSpaceDrawer(space));
+  return boton;
+}
+
+function popupEspacio(space) {
+  const caja = document.createElement("div");
+  caja.appendChild(nodo("h4", null, space.name));
+  caja.appendChild(nodo("p", null, space.address));
+  const confort = filaConfort(space);
+  if (confort.childElementCount > 0) caja.appendChild(confort);
+  caja.appendChild(botonFicha(space, "leaflet-popup-link", "Ver ficha completa"));
+  return caja;
+}
+
+// --- Capa de mapa de calor, con sus modos isla de calor y confort ---
+function clasificarTermica(spotTemp) {
+  if (spotTemp >= 30) {
+    return { etiqueta: "Isla de calor intenso", clase: "uv-tag uv-extreme", simbolo: "fuego", token: "--sem-calor" };
+  }
+  if (spotTemp >= 26) {
+    return { etiqueta: "Temperatura elevada", clase: "uv-tag uv-high", simbolo: "sol", token: "--sem-tibio" };
+  }
+  if (spotTemp >= 21) {
+    return { etiqueta: "Confort térmico óptimo", clase: "uv-tag uv-low", simbolo: "hoja", token: "--sem-fresco" };
+  }
+  return { etiqueta: "Zona fresca y de refugio", clase: "badge-comfort badge-water", simbolo: "gota", token: "--sem-agua" };
+}
+
+function actualizarInsigniaCalor() {
+  const insignia = $("heatModeBadge");
+  if (!insignia) return;
+  insignia.innerHTML = activeHeatMode === "shade"
+    ? icono("arbol") + "&#160;Cobertura de sombra"
+    : icono("fuego") + "&#160;Isla de calor urbano";
+}
+
+function buildHeatmapLayer() {
+  if (!map || typeof L === "undefined") return;
+  if (heatLayerGroup && map.hasLayer(heatLayerGroup)) map.removeLayer(heatLayerGroup);
 
   heatLayerGroup = L.featureGroup();
 
-  const isShadeMode = activeHeatMode === 'shade';
-  const badgeEl = document.getElementById("heatModeBadge");
-  if (badgeEl) {
-    badgeEl.textContent = isShadeMode ? "🌳 Cobertura de Sombra" : "🔥 Isla de Calor Urbano";
-  }
+  const modoSombra = activeHeatMode === "shade";
+  actualizarInsigniaCalor();
 
-  // Visualización con círculos térmicos informativos para máxima interactividad
-  activeSpacesList.forEach(s => {
-    normalizeSpaceComfort(s);
-    
-    // Cálculo térmico dinámico en el punto exacto
-    const tempBase = (MUNICIPIOS_DATA[s.municipio]?.weather?.temp) || currentWeatherData.temp || 26;
-    const shadeOffset = s.shadeLevel === 'Alta' ? -3.5 : (s.shadeLevel === 'Media' ? -1.0 : +2.5);
-    const acOffset = s.hasAC ? -1.5 : 0;
-    const spotTemp = Math.round((tempBase + shadeOffset + acOffset) * 10) / 10;
-    
-    let color = "#3b82f6";
-    let fillColor = "#60a5fa";
-    let statusLabel = "Zona Fresca / Refugio";
+  activeSpacesList.forEach((space) => {
+    normalizeSpaceComfort(space);
 
-    if (spotTemp >= 30) {
-      color = "#ef4444";
-      fillColor = "#f87171";
-      statusLabel = "Isla de Calor Intenso";
-    } else if (spotTemp >= 26) {
-      color = "#f97316";
-      fillColor = "#fb923c";
-      statusLabel = "Temperatura Elevada";
-    } else if (spotTemp >= 21) {
-      color = "#10b981";
-      fillColor = "#34d399";
-      statusLabel = "Confort Térmico Óptimo";
+    const baseMuni = MUNICIPIOS_DATA[space.municipio] && MUNICIPIOS_DATA[space.municipio].weather;
+    const tempBase = (baseMuni && baseMuni.temp) || currentWeatherData.temp || 26;
+    const ajusteSombra = space.shadeLevel === "Alta" ? -3.5 : (space.shadeLevel === "Media" ? -1.0 : 2.5);
+    const ajusteClima = space.hasAC ? -1.5 : 0;
+    const spotTemp = Math.round((tempBase + ajusteSombra + ajusteClima) * 10) / 10;
+
+    let estado = clasificarTermica(spotTemp);
+    if (modoSombra) {
+      estado = space.shadeLevel === "Alta"
+        ? { etiqueta: "Alta sombra y frescor", clase: "uv-tag uv-low", simbolo: "arbol", token: "--sem-fresco" }
+        : { etiqueta: "Sombra parcial", clase: "uv-tag uv-mod", simbolo: "sol", token: "--acento-2" };
     }
 
-    if (isShadeMode) {
-      // Invertir colores para priorizar zonas con mayor frescura y árboles
-      if (s.shadeLevel === 'Alta') {
-        color = "#00f2fe";
-        fillColor = "#38bdf8";
-        statusLabel = "Alta Sombra & Frescor";
-      } else {
-        color = "#64748b";
-        fillColor = "#94a3b8";
-        statusLabel = "Sombra Parcial";
-      }
-    }
+    const trazo = colorToken(estado.token);
 
-    const circle = L.circle([s.lat, s.lng], {
-      color: color,
-      fillColor: fillColor,
-      fillOpacity: 0.45,
-      radius: isShadeMode ? (s.shadeLevel === 'Alta' ? 450 : 250) : 380
+    const circulo = L.circle([space.lat, space.lng], {
+      color: trazo,
+      fillColor: trazo,
+      fillOpacity: 0.35,
+      weight: 2,
+      radius: modoSombra ? (space.shadeLevel === "Alta" ? 450 : 250) : 380
     });
 
-    circle.bindPopup(`
-      <div style="text-align:center; min-width:190px;">
-        <div style="background:${color}; color:#fff; font-size:0.75rem; font-weight:700; padding:3px 8px; border-radius:50px; display:inline-block; margin-bottom:6px;">
-          ${statusLabel}
-        </div>
-        <h4 style="margin-bottom:4px;">${s.name}</h4>
-        <p style="font-size:0.8rem; color:#cbd5e1; margin-bottom:6px;">${s.address}</p>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; font-size:0.78rem; background:rgba(255,255,255,0.06); padding:6px; border-radius:6px; margin-bottom:8px; text-align:left;">
-          <div>🌡️ Temp en sitio: <strong>${spotTemp}°C</strong></div>
-          <div>🌳 Sombra: <strong>${s.shadeLevel}</strong></div>
-          <div>❄️ Climatización: <strong>${s.hasAC ? 'Sí (A/C)' : 'Natural'}</strong></div>
-          <div>💧 Agua Gratis: <strong>${s.hasWater ? 'Sí' : 'No'}</strong></div>
-        </div>
-        <a href="#" class="leaflet-popup-link" onclick="window.showSpaceDetailsById(${s.id}); return false;">
-          Ver Ficha Completa
-        </a>
-      </div>
-    `);
+    circulo.bindPopup(() => {
+      const caja = document.createElement("div");
+      caja.appendChild(pastilla(estado.clase, estado.simbolo, estado.etiqueta, true));
+      caja.appendChild(nodo("h4", null, space.name));
+      caja.appendChild(nodo("p", null, space.address));
 
-    heatLayerGroup.addLayer(circle);
+      const datos = nodo("span", "card-comfort-row");
+      datos.appendChild(pastilla("badge-comfort badge-shade", "termometro", "En sitio: " + spotTemp + " °C"));
+      datos.appendChild(pastilla("badge-comfort badge-shade", "arbol", "Sombra " + space.shadeLevel));
+      datos.appendChild(pastilla("badge-comfort badge-ac", "aire", space.hasAC ? "Climatizado" : "Ventilación natural"));
+      datos.appendChild(pastilla("badge-comfort badge-water", "agua", space.hasWater ? "Agua gratis" : "Sin agua pública"));
+      caja.appendChild(datos);
+
+      caja.appendChild(botonFicha(space, "leaflet-popup-link", "Ver ficha completa"));
+      return caja;
+    });
+
+    heatLayerGroup.addLayer(circulo);
   });
 }
 
-// Mapa de Agua Potable dinámico con sub-filtros e iconos pulsantes
+// --- Capa de red de agua potable ---
+function tonoAgua(waterType) {
+  const texto = String(waterType || "").toLowerCase();
+  if (texto.includes("bebedero") || texto.includes("toma")) return "--sem-agua";
+  if (texto.includes("fría") || texto.includes("filtrad")) return "--acento";
+  if (texto.includes("garraf")) return "--sem-fresco";
+  return "--sem-agua";
+}
+
 function buildWaterMapLayer() {
-  if (waterLayerGroup && map) {
-    map.removeLayer(waterLayerGroup);
-  }
+  if (!map || typeof L === "undefined") return;
+  if (waterLayerGroup && map.hasLayer(waterLayerGroup)) map.removeLayer(waterLayerGroup);
 
   waterLayerGroup = L.featureGroup();
-  
-  let waterSpaces = activeSpacesList.map(s => normalizeSpaceComfort(s)).filter(s => s.hasWater);
 
-  // Aplicar sub-filtro de agua
-  if (activeWaterSubfilter === 'bebedero') {
-    waterSpaces = waterSpaces.filter(s => s.waterType.toLowerCase().includes('bebedero') || s.waterType.toLowerCase().includes('toma'));
-  } else if (activeWaterSubfilter === 'fria') {
-    waterSpaces = waterSpaces.filter(s => s.waterType.toLowerCase().includes('fría') || s.waterType.toLowerCase().includes('filtrad'));
-  } else if (activeWaterSubfilter === 'garrafon') {
-    waterSpaces = waterSpaces.filter(s => s.waterType.toLowerCase().includes('garraf') || s.waterType.toLowerCase().includes('dispensador'));
+  let puntos = activeSpacesList.map(normalizeSpaceComfort).filter((space) => space.hasWater);
+
+  if (activeWaterSubfilter === "bebedero") {
+    puntos = puntos.filter((space) => {
+      const texto = space.waterType.toLowerCase();
+      return texto.includes("bebedero") || texto.includes("toma");
+    });
+  } else if (activeWaterSubfilter === "fria") {
+    puntos = puntos.filter((space) => {
+      const texto = space.waterType.toLowerCase();
+      return texto.includes("fría") || texto.includes("filtrad");
+    });
+  } else if (activeWaterSubfilter === "garrafon") {
+    puntos = puntos.filter((space) => {
+      const texto = space.waterType.toLowerCase();
+      return texto.includes("garraf") || texto.includes("dispensador");
+    });
   }
 
-  const countBadge = document.getElementById("waterStatsCount");
-  if (countBadge) countBadge.textContent = `${waterSpaces.length} Puntos`;
+  const contador = $("waterStatsCount");
+  if (contador) contador.textContent = puntos.length + (puntos.length === 1 ? " punto" : " puntos");
 
-  waterSpaces.forEach(space => {
-    let iconEmoji = "💧";
-    let iconBg = "#0284c7";
-    let glowColor = "#38bdf8";
+  puntos.forEach((space) => {
+    const tono = tonoAgua(space.waterType);
+    const gotaHtml = '<span class="water-pulse-icon" style="display:flex;align-items:center;' +
+      "justify-content:center;inline-size:var(--toque-compacto);block-size:var(--toque-compacto);" +
+      "color:var(--texto-inverso);background-color:var(" + tono + ");" +
+      "border:var(--linea-2) solid var(--sup-hundida);border-radius:var(--radio-pil);" +
+      'box-shadow:var(--sombra-2);">' + icono("agua") + "</span>";
 
-    if (space.waterType.toLowerCase().includes('bebedero')) {
-      iconEmoji = "🚰";
-      iconBg = "#0284c7";
-    } else if (space.waterType.toLowerCase().includes('fría') || space.waterType.toLowerCase().includes('filtrad')) {
-      iconEmoji = "🧊";
-      iconBg = "#2563eb";
-      glowColor = "#60a5fa";
-    } else if (space.waterType.toLowerCase().includes('garraf')) {
-      iconEmoji = "💧";
-      iconBg = "#059669";
-      glowColor = "#34d399";
-    }
-
-    const waterHtml = `
-      <span class="water-pulse-icon" style="
-        background-color: ${iconBg};
-        color: #ffffff;
-        width: 28px;
-        height: 28px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        border: 2px solid #ffffff;
-        box-shadow: 0 0 14px ${glowColor};
-        font-size: 14px;
-        cursor: pointer;
-      ">${iconEmoji}</span>
-    `;
-
-    const icon = L.divIcon({
+    const iconoAgua = L.divIcon({
       className: "water-div-icon",
-      iconAnchor: [14, 14],
-      popupAnchor: [0, -14],
-      html: waterHtml
+      iconAnchor: [18, 18],
+      popupAnchor: [0, -18],
+      html: gotaHtml
     });
 
-    const userLat = userLocation ? userLocation.lat : 21.882;
-    const userLng = userLocation ? userLocation.lng : -102.298;
-    const distMeters = calculateDistance(userLat, userLng, space.lat, space.lng);
+    const marcador = L.marker([space.lat, space.lng], { icon: iconoAgua, title: space.name });
 
-    const marker = L.marker([space.lat, space.lng], { icon: icon });
-    marker.bindPopup(`
-      <div style="text-align:center; min-width:200px;">
-        <div style="color:#38bdf8; font-size:0.75rem; font-weight:700; text-transform:uppercase; margin-bottom:4px;">
-          ${iconEmoji} Punto de Hidratación Gratuita
-        </div>
-        <strong style="font-size:0.95rem; display:block;">${space.name}</strong>
-        <p style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">${space.address}</p>
-        <div style="background:rgba(56,189,248,0.12); padding:6px 10px; border-radius:6px; font-size:0.78rem; color:#bae6fd; margin:8px 0; border:1px solid rgba(56,189,248,0.25);">
-          ${space.waterType || "Bebedero / Dispensador Gratuito"}
-        </div>
-        <div style="font-size:0.75rem; color:#cbd5e1; margin-bottom:8px;">
-          📍 Distancia aproximada: <strong>${formatDistance(distMeters)}</strong>
-        </div>
-        <div style="display:flex; gap:6px;">
-          <button class="btn btn-secondary btn-sm" style="flex:1; font-size:0.72rem; padding:4px 8px;" onclick="window.traceRouteToWaterSpace(${space.id})">
-            🚶‍♂️ Trazar Ruta
-          </button>
-          <button class="btn btn-glow btn-sm" style="flex:1; font-size:0.72rem; padding:4px 8px;" onclick="window.showSpaceDetailsById(${space.id})">
-            Ficha
-          </button>
-        </div>
-      </div>
-    `);
-    waterLayerGroup.addLayer(marker);
+    marcador.bindPopup(() => {
+      const referencia = referenciaUsuario();
+      const distancia = calculateDistance(referencia.lat, referencia.lng, space.lat, space.lng);
+
+      const caja = document.createElement("div");
+      caja.appendChild(pastilla("space-badge", "agua", "Hidratación gratuita", true));
+      caja.appendChild(nodo("h4", null, space.name));
+      caja.appendChild(nodo("p", null, space.address));
+
+      const detalle = nodo("span", "card-comfort-row");
+      detalle.appendChild(pastilla("badge-comfort badge-water", "gota", space.waterType));
+      detalle.appendChild(pastilla("badge-comfort badge-shade", "brujula", "A " + formatDistance(distancia)));
+      caja.appendChild(detalle);
+
+      const acciones = nodo("span", "mapa-actions");
+      const ruta = document.createElement("button");
+      ruta.type = "button";
+      ruta.className = "btn btn-secondary btn-sm";
+      ruta.innerHTML = icono("brujula") + "Trazar ruta";
+      ruta.addEventListener("click", () => trazarRutaAgua(space));
+      acciones.appendChild(ruta);
+      acciones.appendChild(botonFicha(space, "btn btn-glow btn-sm", "Ficha"));
+      caja.appendChild(acciones);
+
+      return caja;
+    });
+
+    waterLayerGroup.addLayer(marcador);
   });
 }
 
-// Trazar ruta visual al punto de agua potable más cercano
-window.traceRouteToWaterSpace = function(spaceId) {
-  const space = activeSpacesList.find(s => s.id === spaceId);
-  if (!space || !map) return;
+function trazarRutaAgua(space) {
+  if (!space || !map || typeof L === "undefined") return;
+  const referencia = referenciaUsuario();
 
-  const userLat = userLocation ? userLocation.lat : 21.882;
-  const userLng = userLocation ? userLocation.lng : -102.298;
-
-  if (waterRoutePolyline) {
+  if (waterRoutePolyline && map.hasLayer(waterRoutePolyline)) {
     map.removeLayer(waterRoutePolyline);
   }
 
-  const latlngs = [
-    [userLat, userLng],
-    [space.lat, space.lng]
-  ];
+  const trazo = [[referencia.lat, referencia.lng], [space.lat, space.lng]];
 
-  waterRoutePolyline = L.polyline(latlngs, {
-    color: '#00f2fe',
+  waterRoutePolyline = L.polyline(trazo, {
+    color: colorToken("--acento-2"),
     weight: 4,
-    opacity: 0.85,
-    dashArray: '8, 12'
+    opacity: 0.9,
+    dashArray: "8, 12"
   }).addTo(map);
 
-  const bounds = L.latLngBounds(latlngs);
-  map.fitBounds(bounds, { padding: [60, 60] });
-};
+  map.fitBounds(L.latLngBounds(trazo), { padding: [60, 60] });
 
-// Función para encontrar automáticamente el punto de agua más cercano y trazar la ruta
-function findNearestWaterPoints() {
-  const userLat = userLocation ? userLocation.lat : 21.882;
-  const userLng = userLocation ? userLocation.lng : -102.298;
-
-  const waterSpaces = activeSpacesList.filter(s => s.hasWater).map(s => {
-    const dist = calculateDistance(userLat, userLng, s.lat, s.lng);
-    return { ...s, dist };
-  }).sort((a, b) => a.dist - b.dist);
-
-  if (waterSpaces.length > 0) {
-    const closest = waterSpaces[0];
-    switchMapLayer('water');
-    window.traceRouteToWaterSpace(closest.id);
+  if (!userLocation) {
+    avisar({
+      titulo: "Ruta desde el centro del estado",
+      cuerpo: "Activa tu ubicación GPS para trazar la ruta desde donde estás.",
+      tipo: "info",
+      simbolo: "info",
+      clave: "ruta-sin-gps"
+    });
   }
 }
 
-// Mapa Climático dinámico con datos multi-municipio de Open-Meteo
-function buildWeatherMapLayer() {
-  if (weatherLayerGroup && map) {
-    map.removeLayer(weatherLayerGroup);
+function findNearestWaterPoints() {
+  const referencia = referenciaUsuario();
+  const ordenados = activeSpacesList
+    .filter((space) => space.hasWater)
+    .map((space) => Object.assign({}, space, {
+      dist: calculateDistance(referencia.lat, referencia.lng, space.lat, space.lng)
+    }))
+    .sort((a, b) => a.dist - b.dist);
+
+  if (ordenados.length === 0) {
+    avisar({
+      titulo: "Sin puntos de agua",
+      cuerpo: "El catálogo actual no tiene puntos de hidratación registrados.",
+      tipo: "alerta",
+      simbolo: "alerta"
+    });
+    return;
   }
+
+  switchMapLayer("water");
+  const cercano = activeSpacesList.find((space) => mismoEspacio(space, ordenados[0]));
+  trazarRutaAgua(cercano || ordenados[0]);
+}
+
+// --- Capa de estaciones meteorológicas ---
+function buildWeatherMapLayer() {
+  if (!map || typeof L === "undefined") return;
+  if (weatherLayerGroup && map.hasLayer(weatherLayerGroup)) map.removeLayer(weatherLayerGroup);
 
   weatherLayerGroup = L.featureGroup();
 
-  Object.keys(MUNICIPIOS_DATA).forEach(muniName => {
+  Object.keys(MUNICIPIOS_DATA).forEach((muniName) => {
     const info = MUNICIPIOS_DATA[muniName];
-    const w = info.weather || {
+    const clima = info.weather || {
       temp: currentWeatherData.temp,
       feelsLike: currentWeatherData.feelsLike,
       humidity: currentWeatherData.humidity,
@@ -1404,155 +2076,148 @@ function buildWeatherMapLayer() {
       wind: currentWeatherData.wind
     };
 
-    const weatherHtml = `
-      <div style="
-        background: rgba(15, 23, 42, 0.92);
-        border: 1px solid #00f2fe;
-        color: #ffffff;
-        padding: 5px 12px;
-        border-radius: 50px;
-        font-size: 11px;
-        font-weight: 700;
-        box-shadow: 0 0 12px rgba(0, 242, 254, 0.5);
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-        cursor: pointer;
-      ">
-        <span>🌤️</span>
-        <span>${muniName}: ${w.temp}°C</span>
-      </div>
-    `;
+    const insigniaHtml = '<span style="display:inline-flex;align-items:center;gap:var(--esp-1);' +
+      "padding:var(--esp-1) var(--esp-2);background-color:var(--sup-flotante);color:var(--texto-alto);" +
+      "border:var(--linea-1) solid var(--borde-control);border-radius:var(--radio-pil);" +
+      "font-family:var(--fuente-titulo);font-size:var(--txt-1);font-weight:var(--peso-fuerte);" +
+      'white-space:nowrap;box-shadow:var(--sombra-2);">' + icono("nube-sol") +
+      esc(muniName + ": " + clima.temp + " °C") + "</span>";
 
-    const icon = L.divIcon({
+    const iconoClima = L.divIcon({
       className: "weather-div-icon",
       iconAnchor: [45, 14],
       popupAnchor: [0, -14],
-      html: weatherHtml
+      html: insigniaHtml
     });
 
-    const spacesInMuni = activeSpacesList.filter(s => s.municipio === muniName).length;
+    const marcador = L.marker([info.lat, info.lng], {
+      icon: iconoClima,
+      title: "Estación climática de " + muniName
+    });
 
-    const marker = L.marker([info.lat, info.lng], { icon: icon });
-    marker.bindPopup(`
-      <div style="text-align:center; min-width:200px;">
-        <h4 style="color:#00f2fe; margin-bottom:6px;">🌤️ Estación Climática ${muniName}</h4>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:0.8rem; text-align:left; background:rgba(255,255,255,0.05); padding:8px; border-radius:6px; margin-bottom:8px;">
-          <div>🌡️ Temp: <strong>${w.temp}°C</strong></div>
-          <div>🔥 Sensación: <strong>${w.feelsLike}°C</strong></div>
-          <div>💧 Humedad: <strong>${w.humidity}%</strong></div>
-          <div>☀️ UV: <strong>${w.uv}</strong></div>
-        </div>
-        <p style="font-size:0.75rem; color:#94a3b8; margin-bottom:8px;">${spacesInMuni} recintos registrados en este municipio.</p>
-        <button class="btn btn-glow btn-sm" style="padding:4px 10px; font-size:0.75rem; width:100%;" onclick="window.filterByMunicipio('${muniName}')">
-          Filtrar Recintos de ${muniName}
-        </button>
-      </div>
-    `);
-    weatherLayerGroup.addLayer(marker);
+    marcador.bindPopup(() => {
+      const recintos = activeSpacesList.filter((space) => space.municipio === muniName).length;
+
+      const caja = document.createElement("div");
+      const titulo = nodo("h4");
+      titulo.innerHTML = icono("nube-sol") + " Estación climática de " + esc(muniName);
+      caja.appendChild(titulo);
+
+      const datos = nodo("span", "card-comfort-row");
+      datos.appendChild(pastilla("badge-comfort badge-shade", "termometro", clima.temp + " °C"));
+      datos.appendChild(pastilla("badge-comfort badge-ac", "fuego", "Sensación " + clima.feelsLike + " °C"));
+      datos.appendChild(pastilla("badge-comfort badge-water", "gota", "Humedad " + clima.humidity + " %"));
+      datos.appendChild(pastilla("badge-comfort badge-shade", "sol", "UV " + clima.uv));
+      caja.appendChild(datos);
+
+      caja.appendChild(nodo("p", null, recintos === 1
+        ? "1 recinto registrado en este municipio."
+        : recintos + " recintos registrados en este municipio."));
+
+      if (recintos > 0) {
+        const filtrar = document.createElement("button");
+        filtrar.type = "button";
+        filtrar.className = "btn btn-glow btn-sm";
+        filtrar.innerHTML = icono("filtro") + "Filtrar recintos de " + esc(muniName);
+        filtrar.addEventListener("click", () => filtrarPorMunicipio(muniName));
+        caja.appendChild(filtrar);
+      }
+
+      return caja;
+    });
+
+    weatherLayerGroup.addLayer(marcador);
   });
 }
 
-// Generate map colors by space type
-function getMarkerColor(type) {
-  const colors = {
-    "Casa de Cultura": "#f97316", // orange
-    "Teatro": "#ec4899",         // pink
-    "Centro Cultural": "#3b82f6", // blue
-    "Galería de Arte": "#a855f7", // purple
-    "Centro Comunitario": "#10b981", // green
-    "Biblioteca": "#eab308"          // yellow/gold
-  };
-  return colors[type] || "#ffffff";
-}
+// ==========================================================================
+// 10. DIRECTORIO: BÚSQUEDA, FILTROS Y TARJETAS
+// ==========================================================================
 
-function plotMapMarkers(spaces) {
-  // Clear existing markers
-  if (markersGroup) {
-    markersGroup.clearLayers();
-  }
+const searchInput = $("searchInput");
+const clearSearchBtn = $("clearSearch");
+const typeChips = Array.from(document.querySelectorAll("#typeChips .chip"));
+const municipioChips = Array.from(document.querySelectorAll("#municipioChips .chip"));
+const comfortChips = Array.from(document.querySelectorAll("#comfortChips .chip"));
+const spacesGrid = $("spacesGrid");
+const resultsCount = $("resultsCount");
+const emptyState = $("emptyState");
+const resetFiltersBtn = $("resetFiltersBtn");
 
-  // Filter out invalid coordinates to prevent Leaflet map crashes
-  const validSpaces = spaces.filter(space => space && !isNaN(parseFloat(space.lat)) && !isNaN(parseFloat(space.lng)));
+let activeFilters = { search: "", type: "all", municipio: "all", comfort: "all" };
 
-  validSpaces.forEach(space => {
-    const markerHtmlStyles = `
-      background-color: ${getMarkerColor(space.type)};
-      width: 14px;
-      height: 14px;
-      display: block;
-      left: -2px;
-      top: -2px;
-      position: relative;
-      border-radius: 50px 50px 0;
-      transform: rotate(-45deg);
-      border: 1.5px solid #030712;
-      box-shadow: 0 0 10px rgba(0,242,254,0.4);
-    `;
-
-    const icon = L.divIcon({
-      className: "custom-div-icon",
-      iconAnchor: [0, 14],
-      popupAnchor: [7, -14],
-      html: `<span style="${markerHtmlStyles}"></span>`
-    });
-
-    const marker = L.marker([space.lat, space.lng], { icon: icon });
-    
-    // Popup content
-    const mapsLink = `https://www.google.com/maps/search/${space.mapQuery}`;
-    const popupContent = `
-      <div>
-        <h4>${space.name}</h4>
-        <p>${space.address}</p>
-        <a href="#" class="leaflet-popup-link" onclick="window.showSpaceDetailsById(${space.id}); return false;">
-          Ver Ficha Completa
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </a>
-      </div>
-    `;
-    
-    marker.bindPopup(popupContent);
-    markersGroup.addLayer(marker);
-    
-    // Guardar referencia
-    customMarkers[space.id] = marker;
-  });
-
-  // Fit bounds if markers exist
-  if (validSpaces.length > 0 && map) {
-    map.fitBounds(markersGroup.getBounds(), { padding: [30, 30] });
-  }
-}
-
-// --- 3. Directory Rendering and Searching ---
-const searchInput = document.getElementById("searchInput");
-const clearSearchBtn = document.getElementById("clearSearch");
-const typeChips = document.querySelectorAll("#typeChips .chip");
-const municipioChips = document.querySelectorAll("#municipioChips .chip");
-const spacesGrid = document.getElementById("spacesGrid");
-const resultsCount = document.getElementById("resultsCount");
-const emptyState = document.getElementById("emptyState");
-const resetFiltersBtn = document.getElementById("resetFiltersBtn");
-
-let activeFilters = {
-  search: "",
-  type: "all",
-  municipio: "all",
-  comfort: "all"
+const CLASES_INSIGNIA = {
+  "Casa de Cultura": "badge-casa",
+  "Teatro": "badge-teatro",
+  "Centro Cultural": "badge-centro",
+  "Galería de Arte": "badge-galeria",
+  "Centro Comunitario": "badge-comunitario",
+  "Biblioteca": "badge-biblioteca"
 };
 
 function getBadgeClass(type) {
-  const badgeClasses = {
-    "Casa de Cultura": "badge-casa",
-    "Teatro": "badge-teatro",
-    "Centro Cultural": "badge-centro",
-    "Galería de Arte": "badge-galeria",
-    "Centro Comunitario": "badge-comunitario",
-    "Biblioteca": "badge-biblioteca"
-  };
-  return badgeClasses[type] || "badge-casa";
+  return CLASES_INSIGNIA[type] || "badge-casa";
+}
+
+// Conteo visible de resultados sin mover el foco (Requisito 6.17)
+function actualizarConteo(mostrados) {
+  if (!resultsCount) return;
+  const total = activeSpacesList.length;
+  resultsCount.textContent = mostrados === 0
+    ? "0 espacios encontrados con los filtros activos"
+    : mostrados + " de " + total + (total === 1 ? " espacio disponible" : " espacios disponibles");
+}
+
+// Tarjeta alcanzable por teclado: rol de botón, Tabulador, Entrar y Barra
+// espaciadora (Requisito 6.3). El encabezado h3 se conserva en el documento.
+function crearTarjeta(space) {
+  const tarjeta = nodo("div", "space-card");
+  tarjeta.setAttribute("role", "button");
+  tarjeta.tabIndex = 0;
+  tarjeta.dataset.id = String(space.id);
+
+  const distintivos =
+    (space.hasWater ? '<span class="badge-comfort badge-water">' + icono("agua") + "Agua gratis</span>" : "") +
+    (space.hasAC ? '<span class="badge-comfort badge-ac">' + icono("aire") + "Climatización</span>" : "") +
+    (space.shadeLevel === "Alta" ? '<span class="badge-comfort badge-shade">' + icono("arbol") + "Sombra alta</span>" : "") +
+    (space.pendienteSync
+      ? '<span class="space-badge">' + icono("sincronizar") + "&#160;Sincronización pendiente</span>"
+      : "");
+
+  tarjeta.innerHTML =
+    '<span class="space-card-top">' +
+      '<span class="space-badge ' + getBadgeClass(space.type) + '">' + esc(space.type) + "</span>" +
+      '<span class="space-municipio">' + esc(space.municipio) + "</span>" +
+    "</span>" +
+    "<h3>" + esc(space.name) + "</h3>" +
+    '<p class="space-address">' + esc(space.address) + "</p>" +
+    (distintivos ? '<span class="card-comfort-row">' + distintivos + "</span>" : "") +
+    '<span class="space-card-footer">' +
+      "<span>Tel: " + esc(space.phone) + "</span>" +
+      '<span class="space-link">Detalles' + icono("flecha-derecha") + "</span>" +
+    "</span>";
+
+  const activar = () => abrirEspacioDesdeTarjeta(space);
+  tarjeta.addEventListener("click", activar);
+  tarjeta.addEventListener("keydown", (evento) => {
+    if (evento.key === "Enter" || evento.key === " " || evento.key === "Spacebar") {
+      evento.preventDefault();
+      activar();
+    }
+  });
+
+  return tarjeta;
+}
+
+function abrirEspacioDesdeTarjeta(space) {
+  openSpaceDrawer(space);
+
+  const marcador = customMarkers.get(space.id);
+  if (map && marcador) {
+    map.setView([space.lat, space.lng], 14);
+    if (map.hasLayer(marcador)) marcador.openPopup();
+    if (window.innerWidth < 1024) irASeccion($("mapa-section"));
+  }
 }
 
 function renderDirectory(spaces) {
@@ -1560,451 +2225,462 @@ function renderDirectory(spaces) {
   spacesGrid.innerHTML = "";
 
   if (spaces.length === 0) {
-    emptyState.style.display = "block";
+    if (emptyState) emptyState.style.display = "block";
     spacesGrid.style.display = "none";
-    resultsCount.textContent = "0 espacios encontrados";
+    actualizarConteo(0);
     return;
   }
 
-  emptyState.style.display = "none";
+  if (emptyState) emptyState.style.display = "none";
   spacesGrid.style.display = "grid";
-  resultsCount.textContent = `${spaces.length} de ${activeSpacesList.length} espacios disponibles`;
+  actualizarConteo(spaces.length);
 
-  spaces.forEach(space => {
+  const lote = document.createDocumentFragment();
+  spaces.forEach((space) => {
     normalizeSpaceComfort(space);
-
-    const card = document.createElement("div");
-    card.className = "space-card";
-    card.setAttribute("data-id", space.id);
-    
-    card.innerHTML = `
-      <div>
-        <div class="space-card-top">
-          <span class="space-badge ${getBadgeClass(space.type)}">${space.type}</span>
-          <span class="space-municipio">${space.municipio}</span>
-        </div>
-        <h3>${space.name}</h3>
-        <p class="space-address">${space.address}</p>
-        
-        <div class="card-comfort-row">
-          ${space.hasWater ? '<span class="badge-comfort badge-water">💧 Agua Gratis</span>' : ''}
-          ${space.hasAC ? '<span class="badge-comfort badge-ac">❄️ A/C</span>' : ''}
-          ${space.shadeLevel === 'Alta' ? '<span class="badge-comfort badge-shade">🌳 Sombra Alta</span>' : ''}
-        </div>
-      </div>
-      <div class="space-card-footer">
-        <span>Tel: ${space.phone}</span>
-        <span class="space-link">
-          Detalles 
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </span>
-      </div>
-    `;
-
-    card.addEventListener("click", () => {
-      openSpaceDrawer(space);
-      
-      if (map && customMarkers[space.id]) {
-        map.setView([space.lat, space.lng], 14);
-        customMarkers[space.id].openPopup();
-        
-        if (window.innerWidth < 1024) {
-          document.getElementById("mapa-section").scrollIntoView({ behavior: "smooth" });
-        }
-      }
-    });
-
-    spacesGrid.appendChild(card);
+    lote.appendChild(crearTarjeta(space));
   });
+  spacesGrid.appendChild(lote);
 }
 
 function filterData() {
-  let filtered = activeSpacesList;
+  let filtrados = activeSpacesList;
 
-  // Filtrado por buscador
   if (activeFilters.search) {
-    const term = activeFilters.search.toLowerCase();
-    filtered = filtered.filter(space => 
-      space.name.toLowerCase().includes(term) ||
-      space.address.toLowerCase().includes(term) ||
-      space.municipio.toLowerCase().includes(term)
+    const termino = activeFilters.search.toLowerCase().slice(0, 100);
+    filtrados = filtrados.filter((space) =>
+      String(space.name).toLowerCase().includes(termino) ||
+      String(space.address).toLowerCase().includes(termino) ||
+      String(space.municipio).toLowerCase().includes(termino)
     );
   }
 
-  // Filtrado por tipo de recinto
   if (activeFilters.type !== "all") {
-    filtered = filtered.filter(space => space.type === activeFilters.type);
+    filtrados = filtrados.filter((space) => space.type === activeFilters.type);
   }
 
-  // Filtrado por municipio
   if (activeFilters.municipio !== "all") {
-    filtered = filtered.filter(space => space.municipio === activeFilters.municipio);
+    filtrados = filtrados.filter((space) => space.municipio === activeFilters.municipio);
   }
 
-  // Filtrado por servicios de confort e hidratación
-  if (activeFilters.comfort !== "all") {
-    if (activeFilters.comfort === "water") {
-      filtered = filtered.filter(space => space.hasWater);
-    } else if (activeFilters.comfort === "ac") {
-      filtered = filtered.filter(space => space.hasAC);
-    } else if (activeFilters.comfort === "shade") {
-      filtered = filtered.filter(space => space.shadeLevel === "Alta");
-    }
+  if (activeFilters.comfort === "water") {
+    filtrados = filtrados.filter((space) => space.hasWater);
+  } else if (activeFilters.comfort === "ac") {
+    filtrados = filtrados.filter((space) => space.hasAC);
+  } else if (activeFilters.comfort === "shade") {
+    filtrados = filtrados.filter((space) => space.shadeLevel === "Alta");
   }
 
-  renderDirectory(filtered);
-  plotMapMarkers(filtered);
+  renderDirectory(filtrados);
+  plotMapMarkers(filtrados);
 }
 
-// Bind search events
 if (searchInput) {
-  searchInput.addEventListener("input", (e) => {
-    activeFilters.search = e.target.value;
-    clearSearchBtn.style.display = e.target.value ? "block" : "none";
+  searchInput.addEventListener("input", (evento) => {
+    activeFilters.search = evento.target.value;
+    if (clearSearchBtn) clearSearchBtn.style.display = evento.target.value ? "block" : "none";
     filterData();
   });
 }
 
 if (clearSearchBtn) {
   clearSearchBtn.addEventListener("click", () => {
-    searchInput.value = "";
+    if (searchInput) searchInput.value = "";
     activeFilters.search = "";
     clearSearchBtn.style.display = "none";
     filterData();
+    if (searchInput) searchInput.focus();
   });
 }
 
-// Bind chip selection (type)
-typeChips.forEach(chip => {
-  chip.addEventListener("click", () => {
-    typeChips.forEach(c => c.classList.remove("active"));
-    chip.classList.add("active");
-    activeFilters.type = chip.getAttribute("data-type");
-    filterData();
+function enlazarChips(chips, atributo, campo) {
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const valor = chip.getAttribute(atributo);
+      marcarActivo(chips, (otro) => otro === chip);
+      activeFilters[campo] = valor;
+      filterData();
+    });
   });
-});
+}
 
-// Bind chip selection (municipio)
-municipioChips.forEach(chip => {
-  chip.addEventListener("click", () => {
-    municipioChips.forEach(c => c.classList.remove("active"));
-    chip.classList.add("active");
-    activeFilters.municipio = chip.getAttribute("data-municipio");
-    filterData();
-  });
-});
-
-// Bind chip selection (comfort)
-const comfortChips = document.querySelectorAll("#comfortChips .chip");
-comfortChips.forEach(chip => {
-  chip.addEventListener("click", () => {
-    comfortChips.forEach(c => c.classList.remove("active"));
-    chip.classList.add("active");
-    activeFilters.comfort = chip.getAttribute("data-comfort");
-    filterData();
-  });
-});
+enlazarChips(typeChips, "data-type", "type");
+enlazarChips(municipioChips, "data-municipio", "municipio");
+enlazarChips(comfortChips, "data-comfort", "comfort");
 
 if (resetFiltersBtn) {
   resetFiltersBtn.addEventListener("click", () => {
-    activeFilters.search = "";
-    activeFilters.type = "all";
-    activeFilters.municipio = "all";
-    activeFilters.comfort = "all";
+    activeFilters = { search: "", type: "all", municipio: "all", comfort: "all" };
     if (searchInput) searchInput.value = "";
     if (clearSearchBtn) clearSearchBtn.style.display = "none";
-    
-    typeChips.forEach(c => c.classList.remove("active"));
-    if (typeChips[0]) typeChips[0].classList.add("active");
-    
-    municipioChips.forEach(c => c.classList.remove("active"));
-    if (municipioChips[0]) municipioChips[0].classList.add("active");
 
-    comfortChips.forEach(c => c.classList.remove("active"));
-    if (comfortChips[0]) comfortChips[0].classList.add("active");
-    
+    marcarActivo(typeChips, (chip) => chip.getAttribute("data-type") === "all");
+    marcarActivo(municipioChips, (chip) => chip.getAttribute("data-municipio") === "all");
+    marcarActivo(comfortChips, (chip) => chip.getAttribute("data-comfort") === "all");
+
     filterData();
   });
 }
 
-// --- 4. Interactive Detail Drawer (Ficha Informativa) ---
-const drawerBackdrop = document.getElementById("drawerBackdrop");
-const spaceDrawer = document.getElementById("spaceDrawer");
-const drawerClose = document.getElementById("drawerClose");
-const drawerBadge = document.getElementById("drawerBadge");
-const drawerTitle = document.getElementById("drawerTitle");
-const drawerAddress = document.getElementById("drawerAddress");
-const drawerPhone = document.getElementById("drawerPhone");
-const drawerMunicipio = document.getElementById("drawerMunicipio");
-const drawerMapsLink = document.getElementById("drawerMapsLink");
-
-function openSpaceDrawer(space) {
-  if (!drawerBackdrop || !spaceDrawer) return;
-
-  normalizeSpaceComfort(space);
-
-  // Set Content
-  drawerBadge.textContent = space.type;
-  drawerBadge.className = `space-badge ${getBadgeClass(space.type)}`;
-  drawerTitle.textContent = space.name;
-  drawerAddress.textContent = space.address;
-  drawerPhone.textContent = space.phone;
-  drawerMunicipio.textContent = `${space.municipio} · Aguascalientes`;
-  drawerMapsLink.href = `https://www.google.com/maps/search/${space.mapQuery}`;
-
-  // Atributos climáticos en el Drawer
-  const drawerWaterChip = document.getElementById("drawerWaterChip");
-  const drawerAcChip = document.getElementById("drawerAcChip");
-  const drawerShadeChip = document.getElementById("drawerShadeChip");
-  const drawerComfortDesc = document.getElementById("drawerComfortDesc");
-
-  if (drawerWaterChip) drawerWaterChip.style.display = space.hasWater ? "inline-flex" : "none";
-  if (drawerAcChip) drawerAcChip.style.display = space.hasAC ? "inline-flex" : "none";
-  if (drawerShadeChip) drawerShadeChip.textContent = `🌳 Sombra ${space.shadeLevel || 'Alta'}`;
-  if (drawerComfortDesc) drawerComfortDesc.textContent = space.climateComfort || "Espacio preparado para confort climático y resguardo de la ciudadanía.";
-
-  // Show
-  drawerBackdrop.classList.add("active");
-}
-
-function closeSpaceDrawer() {
-  if (drawerBackdrop) {
-    drawerBackdrop.classList.remove("active");
-  }
-}
-
-if (drawerClose) {
-  drawerClose.addEventListener("click", closeSpaceDrawer);
-}
-
-if (drawerBackdrop) {
-  drawerBackdrop.addEventListener("click", (e) => {
-    if (e.target === drawerBackdrop) closeSpaceDrawer();
-  });
-}
-
-// Global hook so Leaflet popup click calls it
-window.showSpaceDetailsById = function(id) {
-  const space = activeSpacesList.find(s => s.id === id);
-  if (space) {
-    openSpaceDrawer(space);
-  }
-};
-
-window.filterByMunicipio = function(muniName) {
+function filtrarPorMunicipio(muniName) {
   activeFilters.municipio = muniName;
-  const municipioChips = document.querySelectorAll("#municipioChips .chip");
-  municipioChips.forEach(c => c.classList.toggle("active", c.getAttribute("data-municipio") === muniName));
+  marcarActivo(municipioChips, (chip) => chip.getAttribute("data-municipio") === muniName);
   filterData();
-  const dirSec = document.getElementById("espacios");
-  if (dirSec) dirSec.scrollIntoView({ behavior: "smooth" });
-};
-
-
-
-// --- 6. Mobile Navigation Drawer ---
-const navToggle = document.getElementById("navToggle");
-const navLinksWrapper = document.querySelector(".nav-links-wrapper");
-
-if (navToggle && navLinksWrapper) {
-  navToggle.addEventListener("click", () => {
-    navToggle.classList.toggle("active");
-    navLinksWrapper.classList.toggle("active");
-    
-    // Evitar scroll en body al estar activo
-    document.body.style.overflow = navLinksWrapper.classList.contains("active") ? "hidden" : "";
-  });
-
-  // Cerrar menú al hacer clic en enlace
-  navLinksWrapper.querySelectorAll("a").forEach(link => {
-    link.addEventListener("click", () => {
-      navToggle.classList.remove("active");
-      navLinksWrapper.classList.remove("active");
-      document.body.style.overflow = "";
-    });
-  });
+  irASeccion($("espacios"));
 }
 
-// --- 7. Navbar Scroll Effect ---
-const navbar = document.getElementById("navbar");
+// ==========================================================================
+// 11. DIÁLOGOS: FOCO, CONFINAMIENTO Y ESCAPE (Requisitos 6.5 a 6.8)
+// ==========================================================================
 
-window.addEventListener("scroll", () => {
-  if (window.scrollY > 40) {
-    navbar.classList.add("scrolled");
-  } else {
-    navbar.classList.remove("scrolled");
+const SELECTOR_ENFOCABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  'input:not([disabled]):not([type="hidden"])',
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])'
+].join(", ");
+
+const pilaDialogos = [];
+
+function elementosEnfocables(raiz) {
+  return Array.from(raiz.querySelectorAll(SELECTOR_ENFOCABLE))
+    .filter((elemento) => elemento.getClientRects().length > 0);
+}
+
+function enfocarEncabezado(encabezado) {
+  if (!encabezado) return;
+  if (!encabezado.hasAttribute("tabindex")) encabezado.setAttribute("tabindex", "-1");
+  encabezado.focus({ preventScroll: true });
+}
+
+function encabezadoDeSeccion(elemento) {
+  if (!elemento || typeof elemento.closest !== "function") return null;
+  const seccion = elemento.closest("section");
+  return seccion ? seccion.querySelector("h2") : null;
+}
+
+function devolverFoco(registro) {
+  const origen = registro.origen;
+  if (origen && document.contains(origen) && origen.getClientRects().length > 0) {
+    origen.focus({ preventScroll: true });
+    return;
+  }
+  enfocarEncabezado(registro.respaldo);
+}
+
+function abrirDialogo(config) {
+  const abierto = pilaDialogos.find((registro) => registro.clave === config.clave);
+  const activo = document.activeElement;
+  const origen = activo && activo !== document.body ? activo : null;
+
+  if (abierto) {
+    // La ficha ya abierta cambia de espacio: el foco vuelve a su encabezado.
+    if (origen && !abierto.dialogo.contains(origen)) {
+      abierto.origen = origen;
+      abierto.respaldo = encabezadoDeSeccion(origen);
+    }
+    enfocarEncabezado(abierto.encabezado);
+    return;
+  }
+
+  pilaDialogos.push({
+    clave: config.clave,
+    dialogo: config.dialogo,
+    encabezado: config.encabezado,
+    cerrar: config.cerrar,
+    origen: origen,
+    respaldo: encabezadoDeSeccion(origen)
+  });
+
+  enfocarEncabezado(config.encabezado);
+}
+
+function cerrarDialogo(clave) {
+  const indice = pilaDialogos.findIndex((registro) => registro.clave === clave);
+  if (indice === -1) return;
+  const registro = pilaDialogos.splice(indice, 1)[0];
+  devolverFoco(registro);
+}
+
+// Confinamiento cíclico del foco en el diálogo más reciente
+document.addEventListener("keydown", (evento) => {
+  if (evento.key === "Escape") {
+    if (pilaDialogos.length > 0) {
+      evento.preventDefault();
+      pilaDialogos[pilaDialogos.length - 1].cerrar();
+      return;
+    }
+    if (navLinksWrapper && navLinksWrapper.classList.contains("active")) {
+      evento.preventDefault();
+      alternarMenu(false);
+      if (navToggle) navToggle.focus();
+    }
+    return;
+  }
+
+  if (evento.key !== "Tab" || pilaDialogos.length === 0) return;
+
+  const activo = pilaDialogos[pilaDialogos.length - 1];
+  const enfocables = elementosEnfocables(activo.dialogo);
+  const actual = document.activeElement;
+
+  if (enfocables.length === 0) {
+    evento.preventDefault();
+    enfocarEncabezado(activo.encabezado);
+    return;
+  }
+
+  const primero = enfocables[0];
+  const ultimo = enfocables[enfocables.length - 1];
+
+  if (!activo.dialogo.contains(actual)) {
+    evento.preventDefault();
+    (evento.shiftKey ? ultimo : primero).focus();
+    return;
+  }
+
+  if (evento.shiftKey && (actual === primero || actual === activo.encabezado)) {
+    evento.preventDefault();
+    ultimo.focus();
+  } else if (!evento.shiftKey && actual === ultimo) {
+    evento.preventDefault();
+    primero.focus();
   }
 });
 
-// --- 8. Stats Counters Animation ---
-function startStatsCounter() {
-  const statsNumbers = document.querySelectorAll(".stat-inline-num, .stat-number");
-  
-  const animate = (el) => {
-    const target = parseInt(el.getAttribute("data-target"), 10);
-    const duration = 1200; // ms
-    const startTime = performance.now();
-    
-    const update = (currentTime) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 4); // Cubic ease out
-      
-      el.textContent = Math.floor(ease * target);
-      
-      if (progress < 1) {
-        requestAnimationFrame(update);
-      } else {
-        el.textContent = target;
-      }
-    };
-    
-    requestAnimationFrame(update);
-  };
+// --- Ficha de espacio ---
+const drawerBackdrop = $("drawerBackdrop");
+const spaceDrawer = $("spaceDrawer");
+const drawerClose = $("drawerClose");
+const drawerBadge = $("drawerBadge");
+const drawerTitle = $("drawerTitle");
+const drawerAddress = $("drawerAddress");
+const drawerPhone = $("drawerPhone");
+const drawerMunicipio = $("drawerMunicipio");
+const drawerMapsLink = $("drawerMapsLink");
 
-  // Intersection Observer to trigger when visible
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        animate(entry.target);
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.5 });
+function openSpaceDrawer(space) {
+  if (!drawerBackdrop || !spaceDrawer || !space) return;
 
-  statsNumbers.forEach(num => observer.observe(num));
-}
+  normalizeSpaceComfort(space);
 
-// --- Dynamic Stats Updater ---
-function updateStatsTargets() {
-  const totalSpaces = activeSpacesList.length;
-  const totalMunicipios = new Set(activeSpacesList.map(s => s.municipio)).size;
-  const totalTypes = new Set(activeSpacesList.map(s => s.type)).size;
-  
-  const spacesEl = document.querySelector('.stat-inline-box:nth-child(1) .stat-inline-num') || document.querySelector('[data-target="20"]');
-  const muniEl = document.querySelector('.stat-inline-box:nth-child(2) .stat-inline-num') || document.querySelector('[data-target="7"]');
-  const typesEl = document.querySelector('.stat-inline-box:nth-child(3) .stat-inline-num') || document.querySelector('[data-target="5"]');
-  
-  if (spacesEl) { spacesEl.setAttribute('data-target', totalSpaces); spacesEl.textContent = totalSpaces; }
-  if (muniEl) { muniEl.setAttribute('data-target', totalMunicipios); muniEl.textContent = totalMunicipios; }
-  if (typesEl) { typesEl.setAttribute('data-target', totalTypes); typesEl.textContent = totalTypes; }
-}
-
-// --- 9. Add Space Modal Logic ---
-const openAddSpaceBtn = document.getElementById("openAddSpaceBtn");
-const addSpaceModalOverlay = document.getElementById("addSpaceModalOverlay");
-const closeAddSpaceModal = document.getElementById("closeAddSpaceModal");
-const addSpaceForm = document.getElementById("addSpaceForm");
-
-function openAddSpaceModalFunc() {
-  if (addSpaceModalOverlay) {
-    addSpaceModalOverlay.classList.add("active");
+  if (drawerBadge) {
+    drawerBadge.textContent = space.type;
+    drawerBadge.className = "space-badge " + getBadgeClass(space.type);
   }
-}
+  if (drawerTitle) drawerTitle.textContent = space.name;
+  if (drawerAddress) drawerAddress.textContent = space.address;
+  if (drawerPhone) drawerPhone.textContent = space.phone;
+  if (drawerMunicipio) drawerMunicipio.textContent = space.municipio + " · Aguascalientes";
+  if (drawerMapsLink) drawerMapsLink.href = "https://www.google.com/maps/search/" + space.mapQuery;
 
-function closeAddSpaceModalFunc() {
-  if (addSpaceModalOverlay) {
-    addSpaceModalOverlay.classList.remove("active");
-    if (addSpaceForm) addSpaceForm.reset();
+  const chipAgua = $("drawerWaterChip");
+  const chipClima = $("drawerAcChip");
+  const chipSombra = $("drawerShadeChip");
+  const descripcion = $("drawerComfortDesc");
+
+  if (chipAgua) chipAgua.style.display = space.hasWater ? "inline-flex" : "none";
+  if (chipClima) chipClima.style.display = space.hasAC ? "inline-flex" : "none";
+  // #drawerShadeChip es el span interno: el icono del chip queda intacto.
+  if (chipSombra) chipSombra.textContent = "Sombra " + (space.shadeLevel || "Alta");
+  if (descripcion) {
+    descripcion.textContent = space.pendienteSync
+      ? space.climateComfort + " Registro pendiente de sincronizar con la base remota."
+      : space.climateComfort;
   }
-}
 
-if (openAddSpaceBtn) {
-  openAddSpaceBtn.addEventListener("click", openAddSpaceModalFunc);
-}
-if (closeAddSpaceModal) {
-  closeAddSpaceModal.addEventListener("click", closeAddSpaceModalFunc);
-}
-if (addSpaceModalOverlay) {
-  addSpaceModalOverlay.addEventListener("click", (e) => {
-    if (e.target === addSpaceModalOverlay) closeAddSpaceModalFunc();
+  drawerBackdrop.classList.add("active");
+
+  abrirDialogo({
+    clave: "ficha",
+    dialogo: spaceDrawer,
+    encabezado: drawerTitle,
+    cerrar: closeSpaceDrawer
   });
 }
 
-// --- Helper para extraer latitud y longitud automáticamente de URLs de Google Maps ---
-function extractCoordsFromGmapsUrl(urlStr) {
-  if (!urlStr || typeof urlStr !== 'string') return null;
-  // Coordenadas estilo @lat,lng
-  const atMatch = urlStr.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (atMatch) {
-    return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
-  }
-  // Coordenadas estilo q=lat,lng o ll=lat,lng
-  const qMatch = urlStr.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
-  if (qMatch) {
-    return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
-  }
-  // Coordenadas de inserción !3d(lat)!4d(lng)
-  const dMatch = urlStr.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-  if (dMatch) {
-    return { lat: parseFloat(dMatch[1]), lng: parseFloat(dMatch[2]) };
-  }
-  // Coordenadas simples en texto lat, lng
-  const plainMatch = urlStr.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-  if (plainMatch) {
-    return { lat: parseFloat(plainMatch[1]), lng: parseFloat(plainMatch[2]) };
+function closeSpaceDrawer() {
+  if (drawerBackdrop) drawerBackdrop.classList.remove("active");
+  cerrarDialogo("ficha");
+}
+
+if (drawerClose) drawerClose.addEventListener("click", closeSpaceDrawer);
+
+if (drawerBackdrop) {
+  drawerBackdrop.addEventListener("click", (evento) => {
+    if (evento.target === drawerBackdrop) closeSpaceDrawer();
+  });
+}
+
+// --- Formulario de alta ---
+const openAddSpaceBtn = $("openAddSpaceBtn");
+const addSpaceModalOverlay = $("addSpaceModalOverlay");
+const addSpaceModal = $("addSpaceModal");
+const addSpaceModalTitle = $("addSpaceModalTitle");
+const closeAddSpaceModal = $("closeAddSpaceModal");
+const addSpaceForm = $("addSpaceForm");
+
+function abrirFormularioAlta() {
+  if (!addSpaceModalOverlay || !addSpaceModal) return;
+  addSpaceModalOverlay.classList.add("active");
+  abrirDialogo({
+    clave: "alta",
+    dialogo: addSpaceModal,
+    encabezado: addSpaceModalTitle,
+    cerrar: cerrarFormularioAlta
+  });
+}
+
+function cerrarFormularioAlta(conservarDatos) {
+  if (!addSpaceModalOverlay) return;
+  addSpaceModalOverlay.classList.remove("active");
+  if (!conservarDatos && addSpaceForm) addSpaceForm.reset();
+  cerrarDialogo("alta");
+}
+
+if (openAddSpaceBtn) openAddSpaceBtn.addEventListener("click", abrirFormularioAlta);
+if (closeAddSpaceModal) closeAddSpaceModal.addEventListener("click", () => cerrarFormularioAlta(false));
+if (addSpaceModalOverlay) {
+  addSpaceModalOverlay.addEventListener("click", (evento) => {
+    if (evento.target === addSpaceModalOverlay) cerrarFormularioAlta(false);
+  });
+}
+
+// ==========================================================================
+// 12. EXTRACTOR DE COORDENADAS (Requisitos 3.6 y 3.11)
+// ==========================================================================
+
+// Extensión del estado de Aguascalientes
+const RANGO_AGS = { latMin: 21.6, latMax: 22.5, lngMin: -102.9, lngMax: -101.8 };
+
+const PATRONES_COORDENADAS = [
+  /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/,                               // arroba
+  /[?&](?:q|ll|query|center|destination|daddr|sll)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/, // consulta
+  /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,                           // datos del lugar
+  /(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/                           // texto simple
+];
+
+function dentroDeAguascalientes(lat, lng) {
+  return lat >= RANGO_AGS.latMin && lat <= RANGO_AGS.latMax &&
+    lng >= RANGO_AGS.lngMin && lng <= RANGO_AGS.lngMax;
+}
+
+function extractCoordsFromGmapsUrl(texto) {
+  if (!texto || typeof texto !== "string") return null;
+
+  for (const patron of PATRONES_COORDENADAS) {
+    const coincidencia = texto.match(patron);
+    if (!coincidencia) continue;
+    const lat = parseFloat(coincidencia[1]);
+    const lng = parseFloat(coincidencia[2]);
+    if (isNaN(lat) || isNaN(lng)) continue;
+    if (!dentroDeAguascalientes(lat, lng)) continue;
+    return { lat: lat, lng: lng };
   }
   return null;
 }
 
-// Auto-detector de URL en el input del modal
-const spaceGmapsUrlInput = document.getElementById("spaceGmapsUrlInput");
+function avisarCoordenadasNoDetectadas() {
+  avisar({
+    titulo: "Coordenadas no detectadas",
+    cuerpo: "El enlace no contiene un par de coordenadas dentro de Aguascalientes. Conservamos la latitud y la longitud que ya capturaste.",
+    tipo: "alerta",
+    simbolo: "alerta",
+    clave: "coordenadas",
+    silenciarMs: 8000
+  });
+}
+
+const spaceGmapsUrlInput = $("spaceGmapsUrlInput");
 if (spaceGmapsUrlInput) {
-  spaceGmapsUrlInput.addEventListener("input", (e) => {
-    const parsed = extractCoordsFromGmapsUrl(e.target.value);
-    if (parsed) {
-      const latEl = document.getElementById("spaceLatInput");
-      const lngEl = document.getElementById("spaceLngInput");
-      if (latEl) latEl.value = parsed.lat;
-      if (lngEl) lngEl.value = parsed.lng;
+  let relojCoordenadas = null;
+  let ultimoTextoAvisado = "";
+
+  spaceGmapsUrlInput.addEventListener("input", (evento) => {
+    const texto = evento.target.value.trim();
+    if (relojCoordenadas) clearTimeout(relojCoordenadas);
+
+    const encontrado = extractCoordsFromGmapsUrl(texto);
+    if (encontrado) {
+      const latEl = $("spaceLatInput");
+      const lngEl = $("spaceLngInput");
+      if (latEl) latEl.value = encontrado.lat;
+      if (lngEl) lngEl.value = encontrado.lng;
+      ultimoTextoAvisado = "";
+      return;
+    }
+
+    // Sin par reconocible: no se toca lo capturado y se avisa una sola vez.
+    if (texto.length >= 8 && texto !== ultimoTextoAvisado) {
+      relojCoordenadas = setTimeout(() => {
+        ultimoTextoAvisado = texto;
+        avisarCoordenadasNoDetectadas();
+      }, 700);
     }
   });
 }
 
-// Form Submission & Auto-saving
+// ==========================================================================
+// 13. ALTA DE ESPACIOS (base remota con respaldo local)
+// ==========================================================================
+
+const CENTROS_MUNICIPIO = {
+  "Aguascalientes": [21.882, -102.298],
+  "San José de Gracia": [22.153, -102.416],
+  "San Francisco de los Romo": [22.073, -102.270],
+  "Rincón de Romos": [22.229, -102.323],
+  "Jesús María": [21.961, -102.343],
+  "Calvillo": [21.846, -102.718],
+  "Pabellón de Arteaga": [22.141, -102.276]
+};
+
+function valorCampo(id) {
+  const campo = $(id);
+  return campo ? campo.value.trim() : "";
+}
+
 if (addSpaceForm) {
-  addSpaceForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  addSpaceForm.addEventListener("submit", async (evento) => {
+    evento.preventDefault();
 
-    const name = document.getElementById("spaceNameInput").value.trim();
-    const address = document.getElementById("spaceAddressInput").value.trim();
-    const type = document.getElementById("spaceTypeInput").value;
-    const municipio = document.getElementById("spaceMunicipioInput").value;
-    const phone = document.getElementById("spacePhoneInput").value.trim() || "No disponible";
-    const mapQueryInput = document.getElementById("spaceMapQueryInput").value.trim();
-    const gmapsUrlVal = document.getElementById("spaceGmapsUrlInput") ? document.getElementById("spaceGmapsUrlInput").value.trim() : "";
+    const name = valorCampo("spaceNameInput");
+    const address = valorCampo("spaceAddressInput");
+    const type = valorCampo("spaceTypeInput");
+    const municipio = valorCampo("spaceMunicipioInput");
+    const phone = valorCampo("spacePhoneInput") || "No disponible";
+    const consultaMapa = valorCampo("spaceMapQueryInput");
+    const enlaceGmaps = valorCampo("spaceGmapsUrlInput");
 
-    // Parse coordinates from URL if inputs are empty
-    let parsedFromUrl = extractCoordsFromGmapsUrl(gmapsUrlVal);
+    const desdeEnlace = extractCoordsFromGmapsUrl(enlaceGmaps);
+    const latManual = parseFloat(valorCampo("spaceLatInput"));
+    const lngManual = parseFloat(valorCampo("spaceLngInput"));
+    const hayManuales = !isNaN(latManual) && !isNaN(lngManual);
 
-    // Default coordinates center for municipios if empty
-    const muniCoords = {
-      "Aguascalientes": [21.882, -102.298],
-      "San José de Gracia": [22.153, -102.416],
-      "San Francisco de los Romo": [22.073, -102.270],
-      "Rincón de Romos": [22.229, -102.323],
-      "Jesús María": [21.961, -102.343],
-      "Calvillo": [21.846, -102.718],
-      "Pabellón de Arteaga": [22.141, -102.276]
-    };
+    if (enlaceGmaps && !desdeEnlace && !hayManuales) {
+      avisarCoordenadasNoDetectadas();
+    }
 
-    const center = muniCoords[municipio] || [21.9, -102.3];
-    const offsetLat = (Math.random() - 0.5) * 0.008;
-    const offsetLng = (Math.random() - 0.5) * 0.008;
+    const centro = CENTROS_MUNICIPIO[municipio] || [21.9, -102.3];
+    const desvioLat = (Math.random() - 0.5) * 0.008;
+    const desvioLng = (Math.random() - 0.5) * 0.008;
 
-    const rawLat = parseFloat(document.getElementById("spaceLatInput").value);
-    const rawLng = parseFloat(document.getElementById("spaceLngInput").value);
+    const lat = !isNaN(latManual) ? latManual : (desdeEnlace ? desdeEnlace.lat : centro[0] + desvioLat);
+    const lng = !isNaN(lngManual) ? lngManual : (desdeEnlace ? desdeEnlace.lng : centro[1] + desvioLng);
 
-    let lat = !isNaN(rawLat) ? rawLat : (parsedFromUrl ? parsedFromUrl.lat : (center[0] + offsetLat));
-    let lng = !isNaN(rawLng) ? rawLng : (parsedFromUrl ? parsedFromUrl.lng : (center[1] + offsetLng));
+    const mapQuery = consultaMapa ||
+      (enlaceGmaps ? encodeURIComponent(enlaceGmaps) : encodeURIComponent(name + " " + municipio + " Aguascalientes"));
 
-    const mapQuery = mapQueryInput || (gmapsUrlVal ? encodeURIComponent(gmapsUrlVal) : encodeURIComponent(name + " " + municipio + " Aguascalientes"));
+    const chipAgua = $("spaceWaterInput");
+    const chipClima = $("spaceAcInput");
+    const selectorSombra = $("spaceShadeInput");
 
-    const hasWater = document.getElementById("spaceWaterInput") ? document.getElementById("spaceWaterInput").checked : true;
-    const hasAC = document.getElementById("spaceAcInput") ? document.getElementById("spaceAcInput").checked : true;
-    const shadeLevel = document.getElementById("spaceShadeInput") ? document.getElementById("spaceShadeInput").value : "Alta";
+    const hasWater = chipAgua ? chipAgua.checked : true;
+    const hasAC = chipClima ? chipClima.checked : true;
+    const shadeLevel = selectorSombra ? selectorSombra.value : "Alta";
 
-    const newSpace = {
+    const nuevo = {
       name: name,
       address: address,
       phone: phone,
@@ -2016,166 +2692,363 @@ if (addSpaceForm) {
       hasWater: hasWater,
       hasAC: hasAC,
       shadeLevel: shadeLevel,
-      climateComfort: hasWater ? "Punto de agua potable gratis y área de resguardo." : "Espacio techado con climatización de interiores."
+      climateComfort: hasWater
+        ? "Punto de agua potable gratis y área de resguardo."
+        : "Espacio techado con climatización de interiores."
     };
 
-    let savedSpace = null;
+    let guardadoRemoto = null;
+    let motivoRemoto = "";
 
-    if (supabaseClient) {
+    if (supabaseClient && enLinea()) {
       try {
-        const { data, error } = await supabaseClient
-          .from("espacios_culturales")
-          .insert([newSpace])
-          .select();
-        
+        const consulta = supabaseClient.from(TABLA_ESPACIOS).insert([cargaRemota(nuevo)]).select();
+        const { data, error } = await conLimite(consulta);
         if (error) throw error;
-        if (data && data[0]) {
-          savedSpace = data[0];
-          console.log("Successfully saved to Supabase:", savedSpace);
-        }
+        if (data && data[0]) guardadoRemoto = data[0];
       } catch (err) {
-        console.error("Error saving new space to Supabase:", err);
+        motivoRemoto = "La base remota rechazó el registro.";
       }
-    }
-
-    // Fallback to local storage if Supabase is offline or fails
-    if (!savedSpace) {
-      newSpace.id = Date.now();
-      customSpaces.push(newSpace);
-      try {
-        localStorage.setItem("vendaval_custom_spaces", JSON.stringify(customSpaces));
-      } catch (err) {
-        console.error("Error saving new space to localStorage", err);
-      }
-      activeSpacesList = [...spacesData, ...customSpaces];
+    } else if (!supabaseClient) {
+      motivoRemoto = "La base remota no está disponible en esta sesión.";
     } else {
-      activeSpacesList.push(savedSpace);
+      motivoRemoto = "No hay conexión de red.";
     }
 
-    // Reload interface & update map layers
-    updateStatsTargets();
-    filterData();
-    if (map) switchMapLayer(activeMapLayer);
-    showSyncNotification(name);
+    if (guardadoRemoto) {
+      espaciosRemotos.push(prepararEspacioRemoto(guardadoRemoto));
+      refrescarCatalogo();
+      avisar({
+        titulo: "Espacio registrado",
+        cuerpo: name + " se guardó en la base remota y ya aparece en el directorio y en el mapa.",
+        tipo: "exito",
+        simbolo: "mas"
+      });
+      cerrarFormularioAlta(false);
+      return;
+    }
 
-    // Close
-    closeAddSpaceModalFunc();
+    // Respaldo local con aviso de sincronización pendiente (Requisito 3.10)
+    nuevo.id = Date.now();
+    nuevo.pendienteSync = true;
+    espaciosLocales.push(nuevo);
+    const respaldado = persistirRespaldoLocal();
+    refrescarCatalogo();
+
+    if (respaldado) {
+      avisar({
+        titulo: "Sincronización pendiente",
+        cuerpo: name + " se guardó en este navegador. " + motivoRemoto + " Lo enviaremos a la base remota cuando sea posible.",
+        tipo: "alerta",
+        simbolo: "sincronizar"
+      });
+      cerrarFormularioAlta(false);
+      if (enLinea()) sincronizarPendientes();
+      return;
+    }
+
+    // El almacenamiento local falló: los datos capturados quedan en pantalla
+    // y el aviso indica el estado del registro remoto (Requisito 10.8).
+    avisar({
+      titulo: "El respaldo local no se guardó",
+      cuerpo: "El almacenamiento de este navegador rechazó la escritura y el registro remoto no se completó. " +
+        motivoRemoto + " Tus datos siguen en el formulario para reintentarlo.",
+      tipo: "error",
+      simbolo: "alerta"
+    });
+    aplazarHastaConexion("alta-" + nuevo.id, sincronizarPendientes);
   });
 }
 
-// --- 10. Initialization ---
-document.addEventListener("DOMContentLoaded", () => {
-  updateStatsTargets();
-  initMap();
-  renderDirectory(activeSpacesList);
-  startStatsCounter();
-  fetchCurrentWeather();
+// ==========================================================================
+// 14. NAVEGACIÓN: MENÚ, CINTA Y ENLACE ACTIVO
+// ==========================================================================
 
-  // Bind GPS Locate Button
-  const gpsLocateBtn = document.getElementById("gpsLocateBtn");
-  if (gpsLocateBtn) gpsLocateBtn.addEventListener("click", activateGPSLocation);
+const navToggle = $("navToggle");
+const navLinksWrapper = document.querySelector(".nav-links-wrapper");
+const navbar = $("navbar");
+const navLinks = Array.from(document.querySelectorAll(".nav-links a"));
 
-  // Bind Quick Actions
-  const btnFindWater = document.getElementById("btnFindWater");
-  if (btnFindWater) {
-    btnFindWater.addEventListener("click", () => {
-      updateComfortRecommendation('water');
-      switchMapLayer('water');
-      document.getElementById("mapa-section")?.scrollIntoView({ behavior: 'smooth' });
+function alternarMenu(abrir) {
+  if (!navToggle || !navLinksWrapper) return;
+  navToggle.classList.toggle("active", abrir);
+  navToggle.setAttribute("aria-expanded", abrir ? "true" : "false");
+  navLinksWrapper.classList.toggle("active", abrir);
+  document.body.style.overflow = abrir ? "hidden" : "";
+}
+
+if (navToggle && navLinksWrapper) {
+  navToggle.addEventListener("click", () => {
+    const abrir = !navLinksWrapper.classList.contains("active");
+    alternarMenu(abrir);
+    if (abrir) {
+      const primero = navLinksWrapper.querySelector("a");
+      if (primero) primero.focus();
+    }
+  });
+
+  navLinksWrapper.querySelectorAll("a").forEach((enlace) => {
+    enlace.addEventListener("click", () => alternarMenu(false));
+  });
+
+  document.addEventListener("click", (evento) => {
+    if (!navLinksWrapper.classList.contains("active")) return;
+    if (navLinksWrapper.contains(evento.target) || navToggle.contains(evento.target)) return;
+    alternarMenu(false);
+  });
+}
+
+// Enlace activo: sección con mayor superficie visible, empates por orden del
+// documento, reflejo por debajo de 200 ms (Requisitos 4.6, 4.8 y 4.9).
+const seccionesNav = navLinks
+  .map((enlace) => {
+    const destino = enlace.getAttribute("href") || "";
+    const id = destino.startsWith("#") ? destino.slice(1) : "";
+    const seccion = id ? $(id) : null;
+    return seccion ? { enlace: enlace, seccion: seccion } : null;
+  })
+  .filter(Boolean);
+
+let enlaceActivo = navLinks.find((enlace) => enlace.hasAttribute("aria-current")) || null;
+
+function actualizarEnlaceActivo() {
+  if (seccionesNav.length === 0) return;
+
+  const alto = window.innerHeight || document.documentElement.clientHeight;
+  let mejor = 0;
+  let ganador = null;
+
+  seccionesNav.forEach((par) => {
+    const caja = par.seccion.getBoundingClientRect();
+    const visible = Math.max(0, Math.min(caja.bottom, alto) - Math.max(caja.top, 0));
+    if (visible > mejor + 0.5) {
+      mejor = visible;
+      ganador = par.enlace;
+    }
+  });
+
+  if (!ganador || ganador === enlaceActivo) return;
+
+  navLinks.forEach((enlace) => {
+    if (enlace === ganador) {
+      enlace.setAttribute("aria-current", "true");
+    } else {
+      enlace.removeAttribute("aria-current");
+    }
+  });
+  enlaceActivo = ganador;
+}
+
+let cuadroPendiente = false;
+
+function alDesplazar() {
+  if (navbar) navbar.classList.toggle("scrolled", window.scrollY > 40);
+  if (cuadroPendiente) return;
+  cuadroPendiente = true;
+  requestAnimationFrame(() => {
+    cuadroPendiente = false;
+    actualizarEnlaceActivo();
+  });
+}
+
+window.addEventListener("scroll", alDesplazar, { passive: true });
+window.addEventListener("resize", alDesplazar);
+
+if (typeof IntersectionObserver === "function" && seccionesNav.length > 0) {
+  const observador = new IntersectionObserver(() => actualizarEnlaceActivo(), {
+    threshold: [0, 0.1, 0.25, 0.5, 0.75, 1]
+  });
+  seccionesNav.forEach((par) => observador.observe(par.seccion));
+}
+
+// ==========================================================================
+// 15. CIFRAS DEL HERO
+// ==========================================================================
+
+function updateStatsTargets() {
+  const totalEspacios = activeSpacesList.length;
+  const totalMunicipios = new Set(activeSpacesList.map((space) => space.municipio)).size;
+  const totalTipos = new Set(activeSpacesList.map((space) => space.type)).size;
+
+  const cifras = [
+    [document.querySelector(".stat-inline-box:nth-child(1) .stat-inline-num"), totalEspacios],
+    [document.querySelector(".stat-inline-box:nth-child(2) .stat-inline-num"), totalMunicipios],
+    [document.querySelector(".stat-inline-box:nth-child(3) .stat-inline-num"), totalTipos]
+  ];
+
+  cifras.forEach(([elemento, valor]) => {
+    if (!elemento) return;
+    elemento.setAttribute("data-target", String(valor));
+    elemento.textContent = String(valor);
+  });
+}
+
+function startStatsCounter() {
+  const cifras = Array.from(document.querySelectorAll(".stat-inline-num"));
+  if (cifras.length === 0) return;
+
+  // Con movimiento reducido las cifras se muestran ya en su valor final.
+  if (movimientoReducido() || typeof IntersectionObserver !== "function") {
+    cifras.forEach((elemento) => {
+      elemento.textContent = elemento.getAttribute("data-target") || elemento.textContent;
     });
+    return;
   }
 
-  const btnFindShade = document.getElementById("btnFindShade");
-  if (btnFindShade) {
-    btnFindShade.addEventListener("click", () => {
-      updateComfortRecommendation('shade');
-      switchMapLayer('heat');
-      document.getElementById("mapa-section")?.scrollIntoView({ behavior: 'smooth' });
-    });
-  }
+  const animar = (elemento) => {
+    const objetivo = parseInt(elemento.getAttribute("data-target"), 10) || 0;
+    const duracion = 1200;
+    const inicio = performance.now();
 
-  const btnFindWarm = document.getElementById("btnFindWarm");
-  if (btnFindWarm) {
-    btnFindWarm.addEventListener("click", () => {
-      updateComfortRecommendation('warm');
-      switchMapLayer('weather');
-      document.getElementById("mapa-section")?.scrollIntoView({ behavior: 'smooth' });
-    });
-  }
+    const paso = (ahora) => {
+      const avance = Math.min((ahora - inicio) / duracion, 1);
+      const suavizado = 1 - Math.pow(1 - avance, 4);
+      elemento.textContent = String(Math.floor(suavizado * objetivo));
+      if (avance < 1) {
+        requestAnimationFrame(paso);
+      } else {
+        elemento.textContent = String(objetivo);
+      }
+    };
 
-  // Bind Municipality Weather Chips
-  const muniChips = document.querySelectorAll("#muniWeatherChips .muni-chip");
-  muniChips.forEach(chip => {
-    chip.addEventListener("click", () => {
-      muniChips.forEach(c => c.classList.remove("active"));
-      chip.classList.add("active");
-      const muni = chip.getAttribute("data-muni");
-      const coords = MUNICIPIOS_DATA[muni];
-      if (coords) {
-        fetchCurrentWeather(coords.lat, coords.lng, muni);
-        if (map) {
-          map.setView([coords.lat, coords.lng], 12);
-        }
+    requestAnimationFrame(paso);
+  };
+
+  const observador = new IntersectionObserver((entradas) => {
+    entradas.forEach((entrada) => {
+      if (entrada.isIntersecting) {
+        animar(entrada.target);
+        observador.unobserve(entrada.target);
       }
     });
-  });
+  }, { threshold: 0.5 });
 
-  // Bind Heat Map Overlay Mode Controls
-  const btnHeatModeIsland = document.getElementById("btnHeatModeIsland");
-  const btnHeatModeShade = document.getElementById("btnHeatModeShade");
-  if (btnHeatModeIsland && btnHeatModeShade) {
-    btnHeatModeIsland.addEventListener("click", () => {
-      activeHeatMode = 'island';
-      btnHeatModeIsland.classList.add("active");
-      btnHeatModeShade.classList.remove("active");
-      if (activeMapLayer === 'heat') buildHeatmapLayer();
-    });
+  cifras.forEach((elemento) => observador.observe(elemento));
+}
 
-    btnHeatModeShade.addEventListener("click", () => {
-      activeHeatMode = 'shade';
-      btnHeatModeShade.classList.add("active");
-      btnHeatModeIsland.classList.remove("active");
-      if (activeMapLayer === 'heat') buildHeatmapLayer();
+// ==========================================================================
+// 16. ARRANQUE
+// ==========================================================================
+
+function enlazarAsistenteClimatico() {
+  const gpsBtn = $("gpsLocateBtn");
+  if (gpsBtn) {
+    rotularBotonGps("inactivo");
+    gpsBtn.addEventListener("click", activateGPSLocation);
+  }
+
+  const btnAgua = $("btnFindWater");
+  if (btnAgua) {
+    btnAgua.addEventListener("click", () => {
+      updateComfortRecommendation("water");
+      switchMapLayer("water");
+      irASeccion($("mapa-section"));
     });
   }
 
-  // Bind Water Subfilters
-  const waterSubchips = document.querySelectorAll("#waterSubfilters .water-chip");
-  waterSubchips.forEach(chip => {
+  const btnSombra = $("btnFindShade");
+  if (btnSombra) {
+    btnSombra.addEventListener("click", () => {
+      updateComfortRecommendation("shade");
+      switchMapLayer("heat");
+      irASeccion($("mapa-section"));
+    });
+  }
+
+  const btnTechado = $("btnFindWarm");
+  if (btnTechado) {
+    btnTechado.addEventListener("click", () => {
+      updateComfortRecommendation("warm");
+      switchMapLayer("weather");
+      irASeccion($("mapa-section"));
+    });
+  }
+
+  const chipsMunicipio = Array.from(document.querySelectorAll("#muniWeatherChips .muni-chip"));
+  chipsMunicipio.forEach((chip) => {
     chip.addEventListener("click", () => {
-      waterSubchips.forEach(c => c.classList.remove("active"));
-      chip.classList.add("active");
+      marcarActivo(chipsMunicipio, (otro) => otro === chip);
+      const muni = chip.getAttribute("data-muni");
+      const coordenadas = MUNICIPIOS_DATA[muni];
+      if (!coordenadas) return;
+      fetchCurrentWeather(coordenadas.lat, coordenadas.lng, muni);
+      if (map) map.setView([coordenadas.lat, coordenadas.lng], 12);
+    });
+  });
+}
+
+function enlazarControlesMapa() {
+  initLayerSwitcherEvents();
+
+  const btnIsla = $("btnHeatModeIsland");
+  const btnSombra = $("btnHeatModeShade");
+  if (btnIsla && btnSombra) {
+    const modos = [btnIsla, btnSombra];
+    const cambiarModo = (modo, boton) => {
+      activeHeatMode = modo;
+      marcarActivo(modos, (otro) => otro === boton);
+      actualizarInsigniaCalor();
+      if (activeMapLayer === "heat") switchMapLayer("heat");
+    };
+    btnIsla.addEventListener("click", () => cambiarModo("island", btnIsla));
+    btnSombra.addEventListener("click", () => cambiarModo("shade", btnSombra));
+  }
+
+  const subchips = Array.from(document.querySelectorAll("#waterSubfilters .water-chip"));
+  subchips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      marcarActivo(subchips, (otro) => otro === chip);
       activeWaterSubfilter = chip.getAttribute("data-watersub");
-      if (activeMapLayer === 'water') buildWaterMapLayer();
+      if (activeMapLayer === "water") switchMapLayer("water");
     });
   });
 
-  // Bind Nearest Water Route Button
-  const btnFindNearestWater = document.getElementById("btnFindNearestWater");
-  if (btnFindNearestWater) {
-    btnFindNearestWater.addEventListener("click", () => {
-      findNearestWaterPoints();
-    });
-  }
+  const btnRuta = $("btnFindNearestWater");
+  if (btnRuta) btnRuta.addEventListener("click", findNearestWaterPoints);
 
-  // Bind Google Maps Sync Buttons
-  const syncBtn1 = document.getElementById("syncGmapsBtn");
-  if (syncBtn1) {
-    syncBtn1.addEventListener("click", () => syncGoogleMapsList(true));
-  }
+  const syncBtn = $("syncGmapsBtn");
+  if (syncBtn) syncBtn.addEventListener("click", () => syncGoogleMapsList(true));
 
-  const syncBtn2 = document.getElementById("syncGmapsBtnMap");
-  if (syncBtn2) {
-    syncBtn2.addEventListener("click", () => syncGoogleMapsList(true));
-  }
+  const syncBtnMapa = $("syncGmapsBtnMap");
+  if (syncBtnMapa) syncBtnMapa.addEventListener("click", () => syncGoogleMapsList(true));
+}
 
-  // Periodic Auto-Sync every 30 seconds
-  setInterval(() => {
-    syncGoogleMapsList(false);
-  }, 30000);
+function iniciar() {
+  updateStatsTargets();
+  initMap();
+  filterData();
+  startStatsCounter();
+  actualizarEnlaceActivo();
+
+  enlazarAsistenteClimatico();
+  enlazarControlesMapa();
+  rotularBotonesSync(false);
+
+  fetchCurrentWeather();
 
   if (supabaseClient) {
     loadSpacesFromSupabase();
     subscribeToSpacesRealtime();
+    sincronizarPendientes();
   }
-});
+
+  if (!enLinea()) {
+    avisar({
+      titulo: "Sin conexión",
+      cuerpo: "Mostramos el catálogo local disponible. El buscador y los filtros siguen operando.",
+      tipo: "alerta",
+      simbolo: "alerta",
+      clave: "sin-conexion"
+    });
+  }
+
+  // Primera sincronización de fondo tras el intervalo mínimo de 5 minutos.
+  syncUltimoInicio = Date.now();
+  programarSyncFondo();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", iniciar);
+} else {
+  iniciar();
+}
