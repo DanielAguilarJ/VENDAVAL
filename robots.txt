@@ -1,0 +1,7 @@
+# Vendaval - Portal de espacios culturales de Aguascalientes
+# DOMINIO BASE PROVISIONAL: https://vendaval.mx (sustituir en el despliegue)
+
+User-agent: *
+Allow: /
+
+Sitemap: https://vendaval.mx/sitemap.xml

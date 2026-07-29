@@ -1,553 +1,995 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-MX">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vendaval | Cultura Climática y Espacios Culturales</title>
-  <meta name="description" content="Portal interactivo de espacios públicos culturales en Aguascalientes. Desarrollado por el colectivo Vendaval en colaboración con el IAJU.">
-  
-  <!-- Preconnect & Fonts -->
+
+  <!--
+    DOMINIO BASE PROVISIONAL: https://vendaval.mx
+    Debe sustituirse por el dominio real en el despliegue. Afecta a la URL canónica,
+    og:url, og:image, twitter:image, los datos estructurados JSON-LD, robots.txt y sitemap.xml.
+  -->
+
+  <title>Vendaval | Espacios culturales y clima en Aguascalientes</title>
+  <meta name="description" content="Directorio, mapa y asistente climático de los espacios culturales públicos de Aguascalientes: agua potable gratuita, sombra y aire acondicionado.">
+  <link rel="canonical" href="https://vendaval.mx/">
+  <meta name="theme-color" content="#0e1620">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Vendaval">
+  <meta property="og:locale" content="es_MX">
+  <meta property="og:title" content="Vendaval | Espacios culturales y clima en Aguascalientes">
+  <meta property="og:description" content="Directorio, mapa y asistente climático de los espacios culturales públicos de Aguascalientes: agua potable gratuita, sombra y aire acondicionado.">
+  <meta property="og:url" content="https://vendaval.mx/">
+  <meta property="og:image" content="https://vendaval.mx/assets/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Marca Vendaval sobre fondo oscuro con el lema de espacios culturales y clima en Aguascalientes">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Vendaval | Espacios culturales y clima en Aguascalientes">
+  <meta name="twitter:description" content="Directorio, mapa y asistente climático de los espacios culturales públicos de Aguascalientes: agua potable gratuita, sombra y aire acondicionado.">
+  <meta name="twitter:image" content="https://vendaval.mx/assets/og-image.png">
+  <meta name="twitter:image:alt" content="Marca Vendaval sobre fondo oscuro con el lema de espacios culturales y clima en Aguascalientes">
+
+  <!-- Iconos del sitio -->
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" sizes="180x180">
+
+  <!-- Preconexión y tipografías -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- Leaflet Map CSS -->
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet">
+
+  <!-- Leaflet (CDN conservado: no hay proceso de compilación que lo empaquete todavía) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  
-  <!-- Custom Styles -->
+
+  <!-- Estilos propios -->
   <link rel="stylesheet" href="styles.css">
+
+  <!-- Datos estructurados -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://vendaval.mx/#organizacion",
+        "name": "Vendaval",
+        "alternateName": "Colectivo Vendaval",
+        "url": "https://vendaval.mx/",
+        "logo": "https://vendaval.mx/assets/logo.png",
+        "areaServed": "Aguascalientes, México"
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://vendaval.mx/#sitio",
+        "name": "Vendaval",
+        "url": "https://vendaval.mx/",
+        "inLanguage": "es-MX",
+        "publisher": { "@id": "https://vendaval.mx/#organizacion" }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
-  <!-- Ambient background glow elements -->
-  <div class="glow-bg">
-    <div class="glow-sphere glow-1"></div>
-    <div class="glow-sphere glow-2"></div>
-    <div class="glow-sphere glow-3"></div>
-  </div>
 
-  <!-- Navigation Bar -->
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <a href="#hero" class="nav-logo">
-        <img src="assets/logo.png" alt="Logo Vendaval" class="nav-logo-img">
-        <span class="logo-text">VENDAVAL</span>
-      </a>
-      
-      <div class="nav-links-wrapper">
-        <ul class="nav-links">
-          <li><a href="#hero">Inicio</a></li>
-          <li><a href="#clima-asistente">Clima & GPS</a></li>
-          <li><a href="#espacios">Directorio</a></li>
-          <li><a href="#mapa-section">Mapa</a></li>
-          <li><a href="#equipo">Equipo</a></li>
-        </ul>
-      </div>
+  <!-- ==========================================================================
+       Sprite de iconos. Caja de dibujo 24x24, trazo 1.5, sin relleno, currentColor.
+       Uso: svg.icon con aria-hidden="true" y un use que apunte al id del symbol.
+       ========================================================================== -->
+  <svg class="vd-sprite" aria-hidden="true" hidden width="0" height="0" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icono-termometro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 14.9V5.5a2 2 0 0 0-4 0v9.4a4 4 0 1 0 4 0Z"/>
+      <path d="M16.5 7.5H19M16.5 11H19"/>
+    </symbol>
+    <symbol id="icono-gota" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3s5.5 6.1 5.5 9.6a5.5 5.5 0 0 1-11 0C6.5 9.1 12 3 12 3Z"/>
+      <path d="M9.5 13.6a2.5 2.5 0 0 0 1.7 2.9"/>
+    </symbol>
+    <symbol id="icono-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>
+    </symbol>
+    <symbol id="icono-viento" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 8h10.5a3 3 0 1 0-3-3"/>
+      <path d="M3 16h7.5a3 3 0 1 1-3 3"/>
+      <path d="M3 12h18"/>
+    </symbol>
+    <symbol id="icono-fuego" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.8c.9 2.4 2.5 3.7 3.7 5.2a6 6 0 1 1-7.4-.1c.4.8 1 1.3 1.8 1.5-.8-2.7.8-4.8 1.9-6.6Z"/>
+      <path d="M12 18.6a2.6 2.6 0 0 0 2.6-2.6c0-1.3-1-2-1.7-3-.7 1-2.1 1.5-2.1 2.9a2.6 2.6 0 0 0 1.2 2.7Z"/>
+    </symbol>
+    <symbol id="icono-ubicacion" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 10.5c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+      <circle cx="12" cy="10.5" r="3"/>
+    </symbol>
+    <symbol id="icono-busqueda" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="10.8" cy="10.8" r="6.3"/>
+      <path d="m20 20-4.7-4.7"/>
+    </symbol>
+    <symbol id="icono-sin-resultados" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="10.8" cy="10.8" r="6.3"/>
+      <path d="m20 20-4.7-4.7"/>
+      <path d="M8.4 10.8h4.8"/>
+    </symbol>
+    <symbol id="icono-filtro" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5.5h16l-6.3 7.4V20l-3.4-2.1v-5L4 5.5Z"/>
+    </symbol>
+    <symbol id="icono-mapa" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m9 4.4 6 2.2 5-1.8v13.6l-5 1.8-6-2.2-5 1.8V6.2l5-1.8Z"/>
+      <path d="M9 4.4v13.4M15 6.6V20"/>
+    </symbol>
+    <symbol id="icono-capas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m12 3.2 8.5 4.3L12 11.8 3.5 7.5 12 3.2Z"/>
+      <path d="m3.5 12 8.5 4.3L20.5 12"/>
+      <path d="m3.5 16.4 8.5 4.4 8.5-4.4"/>
+    </symbol>
+    <symbol id="icono-cerrar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/>
+    </symbol>
+    <symbol id="icono-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7h16M4 12h16M4 17h16"/>
+    </symbol>
+    <symbol id="icono-mas" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 5v14M5 12h14"/>
+    </symbol>
+    <symbol id="icono-flecha-derecha" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.5 12h15"/>
+      <path d="m13.5 6 6 6-6 6"/>
+    </symbol>
+    <symbol id="icono-flecha-arriba" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 19.5v-15"/>
+      <path d="m6 10.5 6-6 6 6"/>
+    </symbol>
+    <symbol id="icono-flecha-abajo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 4.5v15"/>
+      <path d="m18 13.5-6 6-6-6"/>
+    </symbol>
+    <symbol id="icono-arbol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20.5v-3.4"/>
+      <path d="M12 3.5 7.6 9.8h8.8L12 3.5Z"/>
+      <path d="M12 9 6.2 17.1h11.6L12 9Z"/>
+    </symbol>
+    <symbol id="icono-aire" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4.5" width="18" height="6" rx="2"/>
+      <path d="M6.2 8h11.6"/>
+      <path d="M6.5 14.2c1 0 1.5.8 2.5.8s1.5-.8 2.5-.8 1.5.8 2.5.8 1.5-.8 2.5-.8"/>
+      <path d="M6.5 18.2c1 0 1.5.8 2.5.8s1.5-.8 2.5-.8 1.5.8 2.5.8 1.5-.8 2.5-.8"/>
+    </symbol>
+    <symbol id="icono-agua" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6.5 20.5v-5a5.5 5.5 0 0 1 11 0v5Z"/>
+      <path d="M12 10V6.5A2.5 2.5 0 0 1 14.5 4h3"/>
+      <path d="M17.5 2.8v2.4"/>
+    </symbol>
+    <symbol id="icono-reloj" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.5"/>
+      <path d="M12 7.2V12l3.5 2.1"/>
+    </symbol>
+    <symbol id="icono-alerta" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 4.2 2.9 19.8h18.2L12 4.2Z"/>
+      <path d="M12 9.8v4.4"/>
+      <path d="M12 17.1h.01"/>
+    </symbol>
+    <symbol id="icono-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.5"/>
+      <path d="M12 11.2v5.3"/>
+      <path d="M12 7.8h.01"/>
+    </symbol>
+    <symbol id="icono-telefono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6.4 3.5h3.1l1.5 3.9-2 1.5a11.2 11.2 0 0 0 6.1 6.1l1.5-2 3.9 1.5v3.1a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.4 5.7a2 2 0 0 1 2-2.2Z"/>
+    </symbol>
+    <symbol id="icono-enlace-externo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 4h6v6"/>
+      <path d="M20 4l-8.5 8.5"/>
+      <path d="M18 13.5v5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6h5"/>
+    </symbol>
+    <symbol id="icono-equipo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15.5 20.5v-1.8a4 4 0 0 0-4-4h-4a4 4 0 0 0-4 4v1.8"/>
+      <circle cx="9.5" cy="7.5" r="3.5"/>
+      <path d="M20.5 20.5v-1.8a4 4 0 0 0-3-3.8"/>
+      <path d="M15.2 4.2a3.5 3.5 0 0 1 0 6.6"/>
+    </symbol>
+    <symbol id="icono-brujula" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.5"/>
+      <path d="m15.2 8.8-2 4.4-4.4 2 2-4.4 4.4-2Z"/>
+    </symbol>
+    <symbol id="icono-edificio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.2 20.5h17.6"/>
+      <path d="M12 3.5 4.5 8h15L12 3.5Z"/>
+      <path d="M7 11v6.4M10.5 11v6.4M13.5 11v6.4M17 11v6.4"/>
+      <path d="M4.8 20.5v-3.1h14.4v3.1"/>
+    </symbol>
+    <symbol id="icono-nube-sol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="8.5" cy="8" r="2.8"/>
+      <path d="M8.5 2.6v1.2M4.1 3.9l.9.9M2.7 8h1.2M12.9 3.9l-.9.9"/>
+      <path d="M9.2 19.8h7.6a3.2 3.2 0 1 0-.7-6.3 4.5 4.5 0 0 0-7.6.9 2.7 2.7 0 0 0 .7 5.4Z"/>
+    </symbol>
+    <symbol id="icono-sincronizar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 11.2A8 8 0 0 0 6.3 6.3L3.6 9"/>
+      <path d="M3.6 4.5V9h4.5"/>
+      <path d="M4 12.8a8 8 0 0 0 13.7 4.9l2.7-2.7"/>
+      <path d="M20.4 19.5V15h-4.5"/>
+    </symbol>
+    <symbol id="icono-hoja" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4.5 19.5C4.5 11.2 10 6.6 19.4 5.6c1 8.4-3.6 13.9-11.9 13.9H4.5Z"/>
+      <path d="M8.8 15.2c1.6-3 4.1-5.2 7.6-6.6"/>
+    </symbol>
+  </svg>
 
-      <button class="nav-toggle" id="navToggle" aria-label="Menu principal">
-        <span class="bar"></span>
-        <span class="bar"></span>
-        <span class="bar"></span>
-      </button>
-    </div>
-  </nav>
+  <!-- Enlace de salto: primer elemento enfocable del documento -->
+  <a class="vd-skip-link" href="#contenido">Saltar al contenido principal</a>
 
-  <!-- Hero Section -->
-  <header class="hero" id="hero">
-    <div class="hero-content-grid">
-      <div class="hero-text-block">
-        <div class="hero-tag">
-          <span class="pulse-dot"></span>
-          Cultura Climática · IAJU
+  <!-- ========================= Encabezado y navegación ========================= -->
+  <header class="site-header">
+    <nav class="navbar" id="navbar" aria-label="Navegación principal">
+      <div class="nav-container">
+        <a href="#hero" class="nav-logo" aria-label="VENDAVAL, inicio">
+          <img src="assets/logo.png" alt="" aria-hidden="true" width="420" height="426" decoding="async" class="nav-logo-img">
+          <span class="logo-text">VENDAVAL</span>
+        </a>
+
+        <div class="nav-links-wrapper" id="navMenu">
+          <ul class="nav-links">
+            <li><a href="#hero" aria-current="true">Inicio</a></li>
+            <li><a href="#proposito">Proyecto</a></li>
+            <li><a href="#clima-asistente">Clima y GPS</a></li>
+            <li><a href="#espacios">Directorio</a></li>
+            <li><a href="#mapa-section">Mapa</a></li>
+            <li><a href="#equipo">Equipo</a></li>
+          </ul>
         </div>
-        <h1 class="hero-title">
-          Redescubre los <br>
-          <span class="text-gradient">Espacios Culturales</span> <br>
-          de Aguascalientes
-        </h1>
-        <p class="hero-description">
-          Cartografía activa de casas de cultura, galerías y centros comunitarios. Un proyecto impulsado por jóvenes agentes de cambio para descentralizar y democratizar el acceso al arte.
-        </p>
-        
-        <div class="hero-buttons">
-          <a href="#espacios" class="btn btn-glow">Ver Espacios</a>
-          <a href="https://www.google.com/maps/@22.0409642,-102.6739162,120170m/data=!3m1!1e3!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-secondary" id="heroGmapsLink">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            Abrir Google Maps
-          </a>
-        </div>
-        
-        <div class="hero-stats-inline">
-          <div class="stat-inline-box">
-            <div class="stat-inline-num" data-target="20">0</div>
-            <div class="stat-inline-lbl">Espacios</div>
-          </div>
-          <div class="stat-inline-box">
-            <div class="stat-inline-num" data-target="7">0</div>
-            <div class="stat-inline-lbl">Municipios</div>
-          </div>
-          <div class="stat-inline-box">
-            <div class="stat-inline-num" data-target="5">0</div>
-            <div class="stat-inline-lbl">Recintos</div>
-          </div>
-        </div>
+
+        <button type="button" class="nav-toggle" id="navToggle" aria-label="Abrir menú de navegación" aria-expanded="false" aria-controls="navMenu">
+          <svg class="icon nav-toggle-icon nav-toggle-icon--abrir" aria-hidden="true" focusable="false"><use href="#icono-menu"></use></svg>
+          <svg class="icon nav-toggle-icon nav-toggle-icon--cerrar" aria-hidden="true" focusable="false"><use href="#icono-cerrar"></use></svg>
+        </button>
       </div>
-      
-      <div class="hero-media-panel">
-        <div class="hero-image-frame">
-          <img src="assets/equipo.jpeg" alt="Colectivo Vendaval IAJU" class="hero-team-img">
-          <div class="hero-image-overlay">
-            <span class="pulse-dot"></span>
-            <span>Colectivo Vendaval IAJU</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <a href="#espacios" class="hero-scroll" aria-label="Deslizar hacia abajo">
-      <div class="mouse-icon">
-        <span class="mouse-wheel"></span>
-      </div>
-    </a>
+    </nav>
   </header>
 
-  <!-- Asistente Climático & Recomendaciones GPS Section -->
-  <!-- Asistente Climático & Recomendaciones GPS Section -->
-  <section class="clima-section" id="clima-asistente">
-    <div class="container">
-      <div class="clima-card-hero">
-        <div class="clima-header">
-          <div class="clima-title-block">
-            <span class="subtitle-badge badge-clima">🌱 Confort Ambiental y Salud</span>
-            <h2 class="clima-main-title">Asistente Climático & GPS</h2>
-            <p class="clima-subtitle">Monitoreo en tiempo real de microclimas, temperatura, índice UV y red de hidratación gratuita en Aguascalientes.</p>
-          </div>
-          <button id="gpsLocateBtn" class="btn btn-glow btn-gps">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 14a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/></svg>
-            📍 Activar mi Ubicación GPS
-          </button>
-        </div>
+  <!-- ================================ Contenido ================================ -->
+  <main id="contenido">
 
-        <!-- Municipality Weather Selector -->
-        <div class="muni-weather-bar">
-          <span class="muni-weather-label">📍 Estación Municipal:</span>
-          <div class="muni-chips-row" id="muniWeatherChips">
-            <button class="muni-chip active" data-muni="Aguascalientes">Aguascalientes</button>
-            <button class="muni-chip" data-muni="Calvillo">Calvillo</button>
-            <button class="muni-chip" data-muni="Jesús María">Jesús María</button>
-            <button class="muni-chip" data-muni="Rincón de Romos">Rincón de Romos</button>
-            <button class="muni-chip" data-muni="San José de Gracia">San José de Gracia</button>
-            <button class="muni-chip" data-muni="Pabellón de Arteaga">Pabellón de Arteaga</button>
-            <button class="muni-chip" data-muni="San Francisco de los Romo">S. Fco. de los Romo</button>
-            <button class="muni-chip" data-muni="Asientos">Asientos</button>
-            <button class="muni-chip" data-muni="Cosío">Cosío</button>
-            <button class="muni-chip" data-muni="El Llano">El Llano</button>
-            <button class="muni-chip" data-muni="Tepezalá">Tepezalá</button>
-          </div>
-        </div>
-
-        <div class="clima-stats-grid">
-          <div class="clima-stat-box">
-            <span class="clima-stat-icon">🌡️</span>
-            <div>
-              <div class="clima-stat-val" id="weatherTemp">-- °C</div>
-              <div class="clima-stat-lbl">Temperatura Actual</div>
-              <div class="clima-stat-sub" id="weatherFeels">Sensación: -- °C</div>
-            </div>
-          </div>
-
-          <div class="clima-stat-box">
-            <span class="clima-stat-icon">💧</span>
-            <div>
-              <div class="clima-stat-val" id="weatherHumidity">-- %</div>
-              <div class="clima-stat-lbl">Humedad / Confort</div>
-              <div class="clima-stat-sub" id="weatherHumidityDesc">Agradable</div>
-            </div>
-          </div>
-
-          <div class="clima-stat-box">
-            <span class="clima-stat-icon">☀️</span>
-            <div>
-              <div class="clima-stat-val" id="weatherUV">--</div>
-              <div class="clima-stat-lbl">Índice UV Solar</div>
-              <div class="clima-stat-sub" id="weatherUVBadge"><span class="uv-tag uv-mod">Moderado</span></div>
-            </div>
-          </div>
-
-          <div class="clima-stat-box">
-            <span class="clima-stat-icon">💨</span>
-            <div>
-              <div class="clima-stat-val" id="weatherWind">-- km/h</div>
-              <div class="clima-stat-lbl">Viento & Aire</div>
-              <div class="clima-stat-sub" id="weatherAirQuality">Aire Limpio</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="clima-recommendation-panel" id="climaRecPanel">
-          <div class="clima-rec-badge" id="climaRecBadge">ℹ️ Estado del Tiempo</div>
-          <div class="clima-rec-title" id="climaRecTitle">Obteniendo clima en vivo...</div>
-          <p class="clima-rec-desc" id="climaRecDesc">Activa tu GPS para calcular el espacio con agua potable o climatización más cercano a tu ubicación exacta.</p>
-          
-          <div class="clima-quick-actions">
-            <button class="btn btn-secondary btn-sm" id="btnFindWater">💧 Buscar Agua Potable Gratis</button>
-            <button class="btn btn-secondary btn-sm" id="btnFindShade">❄️ Buscar Refugio / A/C</button>
-            <button class="btn btn-secondary btn-sm" id="btnFindWarm">🔥 Buscar Espacio Techado</button>
-          </div>
+    <noscript>
+      <div class="aviso-sin-js">
+        <svg class="icon icon-lg aviso-sin-js-icono" aria-hidden="true" focusable="false"><use href="#icono-alerta"></use></svg>
+        <div class="aviso-sin-js-cuerpo">
+          <p class="aviso-sin-js-titulo"><strong>Esta página necesita JavaScript para sus herramientas interactivas.</strong></p>
+          <p>El Asistente Climático, el Directorio de espacios y el Mapa Interactivo requieren JavaScript activado. El resto de la información del proyecto, el propósito, el equipo y los créditos sigue disponible en esta misma página.</p>
+          <a class="btn btn-secondary aviso-sin-js-enlace" href="https://www.google.com/maps/@22.0409642,-102.6739162,120170m/data=!3m1!1e3!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&amp;g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener noreferrer">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-mapa"></use></svg>
+            Abrir el mapa oficial en Google Maps
+            <span class="vd-visually-hidden">(sitio externo, se abre en una ventana nueva)</span>
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-enlace-externo"></use></svg>
+          </a>
         </div>
       </div>
-    </div>
-  </section>
+    </noscript>
 
-  
-
-  <!-- Directory Section -->
-  <section class="espacios-section" id="espacios">
-    <div class="container">
-      <div class="section-title-wrapper text-center">
-        <span class="subtitle-badge">Cartografía Interactiva</span>
-        <h2 class="section-main-title">Directorio de Espacios Culturales</h2>
-        <p class="section-subtitle">Busca y filtra espacios en todo el estado. Haz clic en las tarjetas para localizarlas en el mapa interactivo.</p>
+    <!-- ---------------------------------- Hero ---------------------------------- -->
+    <section class="hero" id="hero" aria-labelledby="hero-titulo">
+      <div class="hero-brand-art" aria-hidden="true">
+        <svg class="hero-brand-mark" viewBox="0 0 480 480" focusable="false" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <pattern id="vd-trama-viento" width="28" height="28" patternUnits="userSpaceOnUse" patternTransform="rotate(-35)">
+              <path d="M0 14h28" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.35"/>
+            </pattern>
+          </defs>
+          <circle cx="240" cy="240" r="228" fill="url(#vd-trama-viento)"/>
+          <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round">
+            <circle cx="240" cy="240" r="192"/>
+            <ellipse cx="240" cy="240" rx="192" ry="69"/>
+            <ellipse cx="240" cy="240" rx="192" ry="69" transform="rotate(36 240 240)"/>
+            <ellipse cx="240" cy="240" rx="192" ry="69" transform="rotate(72 240 240)"/>
+            <ellipse cx="240" cy="240" rx="192" ry="69" transform="rotate(108 240 240)"/>
+            <ellipse cx="240" cy="240" rx="192" ry="69" transform="rotate(144 240 240)"/>
+          </g>
+          <circle cx="82.7" cy="129.9" r="16" class="hero-brand-nodo"/>
+          <circle cx="420.4" cy="305.7" r="13" class="hero-brand-nodo"/>
+        </svg>
       </div>
 
-      <!-- Controls Panel (Search and Filters) -->
-      <div class="controls-panel">
-        <div class="search-and-add-row">
-          <div class="search-wrapper">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="Escribe el nombre del espacio, calle o municipio..." aria-label="Buscar espacio cultural">
-            <button id="clearSearch" class="clear-search-btn" aria-label="Limpiar búsqueda" style="display: none;">&times;</button>
-          </div>
-          <button id="syncGmapsBtn" class="btn btn-secondary" title="Sincronizar ubicaciones en vivo con la lista oficial de Google Maps">
-            🔄 Sincronizar Google Maps
-          </button>
-          <button id="openAddSpaceBtn" class="btn btn-glow">+ Agregar Espacio</button>
-        </div>
-
-        <div class="filters-container">
-          <div class="filter-group">
-            <label class="filter-label">Recinto</label>
-            <div class="chips-row" id="typeChips">
-              <button class="chip active" data-type="all">Todos</button>
-              <button class="chip" data-type="Casa de Cultura">Casas de Cultura</button>
-              <button class="chip" data-type="Teatro">Teatros</button>
-              <button class="chip" data-type="Centro Cultural">Centros Culturales</button>
-              <button class="chip" data-type="Galería de Arte">Galerías</button>
-              <button class="chip" data-type="Centro Comunitario">Centros Comunitarios</button>
-              <button class="chip" data-type="Biblioteca">Bibliotecas</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label">Territorio</label>
-            <div class="chips-row" id="municipioChips">
-              <button class="chip active" data-municipio="all">Todos los Municipios</button>
-              <button class="chip" data-municipio="Aguascalientes">Aguascalientes</button>
-              <button class="chip" data-municipio="San José de Gracia">San José de Gracia</button>
-              <button class="chip" data-municipio="San Francisco de los Romo">S. Francisco de los Romo</button>
-              <button class="chip" data-municipio="Rincón de Romos">Rincón de Romos</button>
-              <button class="chip" data-municipio="Jesús María">Jesús María</button>
-              <button class="chip" data-municipio="Calvillo">Calvillo</button>
-              <button class="chip" data-municipio="Pabellón de Arteaga">Pabellón de Arteaga</button>
-            </div>
-          </div>
-
-          <div class="filter-group">
-            <label class="filter-label">Servicios de Confort e Hidratación</label>
-            <div class="chips-row" id="comfortChips">
-              <button class="chip active" data-comfort="all">Todos</button>
-              <button class="chip" data-comfort="water">💧 Agua Gratis</button>
-              <button class="chip" data-comfort="ac">❄️ Climatización (A/C)</button>
-              <button class="chip" data-comfort="shade">🌳 Sombra / Frescor</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="results-bar">
-        <span class="results-count" id="resultsCount">Cargando espacios...</span>
-      </div>
-
-      <!-- Spaces Cards Grid -->
-      <div class="spaces-grid" id="spacesGrid">
-        <!-- JS Injected Cards -->
-      </div>
-
-      <!-- Empty State -->
-      <div class="empty-state" id="emptyState" style="display: none;">
-        <div class="empty-icon">📭</div>
-        <h3>Sin resultados</h3>
-        <p>No encontramos espacios culturales con los filtros seleccionados.</p>
-        <button id="resetFiltersBtn" class="btn btn-secondary btn-sm">Restablecer filtros</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Interactive Map Section -->
-  <section class="mapa-section" id="mapa-section">
-    <div class="container">
-      <div class="mapa-layout">
-        <div class="mapa-header-info">
-          <span class="subtitle-badge">Geolocalización</span>
-          <h2 class="section-main-title">Mapa de Distribución</h2>
-          <p class="section-subtitle">Explora de forma visual la infraestructura cultural pública. Haz zoom y haz clic en los pines para ver detalles.</p>
-          
-          <div class="mapa-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="https://www.google.com/maps/@22.0409642,-102.6739162,120170m/data=!3m1!1e3!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn btn-glow" id="sectionGmapsLink">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-              Abrir Mapa Oficial de Google
-            </a>
-            <button id="syncGmapsBtnMap" class="btn btn-secondary">
-              🔄 Sincronizar en Vivo
-            </button>
-          </div>
-
-          <div class="map-legend-panel">
-            <h4>Tipos de Recinto</h4>
-            <ul class="legend-list">
-              <li><span class="legend-dot dot-casa"></span> Casas de Cultura</li>
-              <li><span class="legend-dot dot-teatro"></span> Teatros</li>
-              <li><span class="legend-dot dot-centro"></span> Centros Culturales</li>
-              <li><span class="legend-dot dot-galeria"></span> Galerías de Arte</li>
-              <li><span class="legend-dot dot-comunitario"></span> Centros Comunitarios</li>
-              <li><span class="legend-dot dot-biblioteca"></span> Bibliotecas</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="mapa-container-wrapper">
-          <div class="map-layer-switcher" id="mapLayerSwitcher">
-            <span class="switcher-label">🌐 Capas del Mapa:</span>
-            <button class="layer-chip active" data-layer="spaces">🏛️ Recintos</button>
-            <button class="layer-chip" data-layer="heat">🌡️ Mapa de Calor</button>
-            <button class="layer-chip" data-layer="water">💧 Mapa de Agua</button>
-            <button class="layer-chip" data-layer="weather">🌤️ Clima Actual</button>
-          </div>
-
-          <!-- Floating Layer Overlays -->
-          <!-- Heat Overlay -->
-          <div class="map-floating-overlay" id="heatOverlayPanel" style="display: none;">
-            <div class="overlay-header">
-              <span class="overlay-title">🌡️ Control Térmico e Isla de Calor</span>
-              <span class="overlay-badge" id="heatModeBadge">Microclima Urbano</span>
-            </div>
-            <div class="thermal-scale-bar">
-              <div class="scale-segment seg-cool"><span>&lt;20°C</span> Fresco</div>
-              <div class="scale-segment seg-comfort"><span>20-25°C</span> Confort</div>
-              <div class="scale-segment seg-warm"><span>26-30°C</span> Cálido</div>
-              <div class="scale-segment seg-hot"><span>&gt;30°C</span> Isla Calor</div>
-            </div>
-            <div class="overlay-controls">
-              <button class="overlay-btn active" id="btnHeatModeIsland">🔥 Isla de Calor</button>
-              <button class="overlay-btn" id="btnHeatModeShade">🌳 Confort & Sombra</button>
-            </div>
-          </div>
-
-          <!-- Water Overlay -->
-          <div class="map-floating-overlay" id="waterOverlayPanel" style="display: none;">
-            <div class="overlay-header">
-              <span class="overlay-title">💧 Red de Hidratación Gratuita</span>
-              <span class="overlay-badge" id="waterStatsCount">27 Puntos</span>
-            </div>
-            <div class="water-subfilters" id="waterSubfilters">
-              <button class="water-chip active" data-watersub="all">Todos</button>
-              <button class="water-chip" data-watersub="bebedero">🚰 Bebederos</button>
-              <button class="water-chip" data-watersub="fria">🧊 Agua Fría</button>
-              <button class="water-chip" data-watersub="garrafon">💧 Garrafones</button>
-            </div>
-            <button class="btn btn-secondary btn-sm btn-block" id="btnFindNearestWater" style="margin-top: 8px;">
-              📍 Ruta al Punto de Agua más Cercano
-            </button>
-          </div>
-
-          <!-- Weather Overlay -->
-          <div class="map-floating-overlay" id="weatherOverlayPanel" style="display: none;">
-            <div class="overlay-header">
-              <span class="overlay-title">🌤️ Estaciones Meteorológicas</span>
-              <span class="overlay-badge">11 Municipios</span>
-            </div>
-            <div class="overlay-info-text">
-              Haz clic en cualquier insignia 🌤️ para ver el pronóstico en vivo y filtrar los recintos de ese municipio.
-            </div>
-          </div>
-
-          <div id="leafletMap" class="leaflet-map-element"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Team Section -->
-  <section class="equipo-section" id="equipo">
-    <div class="container">
-      <div class="team-intro-layout">
-        <div class="team-photo-frame">
-          <img src="assets/equipo.jpeg" alt="Colectivo Vendaval IAJU" class="team-group-img">
-          <div class="team-photo-caption">
-            <span>Colectivo Vendaval en las oficinas del IAJU, Junio 2026</span>
-          </div>
-        </div>
-        <div class="team-intro-text">
-          <span class="subtitle-badge">Colectivo</span>
-          <h2 class="section-main-title">Conoce a Vendaval</h2>
-          <p class="section-subtitle">
-            Somos un equipo multidisciplinario de jóvenes en Aguascalientes comprometidos con la reactivación cultural y la concientización del agua. En colaboración con el IAJU, desarrollamos este mapeo interactivo de espacios públicos para toda la ciudadanía.
+      <div class="hero-content-grid">
+        <div class="hero-text-block">
+          <p class="hero-tag">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            Cultura climática · IAJU
           </p>
+          <h1 class="hero-title" id="hero-titulo">
+            Espacios culturales de Aguascalientes
+            <span class="hero-title-acento">con agua, sombra y aire fresco</span>
+          </h1>
+          <p class="hero-description">
+            Cartografía viva de casas de cultura, teatros, galerías y bibliotecas del estado, con clima en tiempo real y puntos de hidratación gratuita para recorrerla sin insolarte.
+          </p>
+
+          <div class="hero-buttons">
+            <a href="#espacios" class="btn btn-glow hero-btn-primaria">
+              Ver el directorio
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-flecha-derecha"></use></svg>
+            </a>
+            <a href="https://www.google.com/maps/@22.0409642,-102.6739162,120170m/data=!3m1!1e3!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&amp;g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" id="heroGmapsLink">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-ubicacion"></use></svg>
+              Abrir el mapa oficial
+              <span class="vd-visually-hidden">en Google Maps (sitio externo, se abre en una ventana nueva)</span>
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-enlace-externo"></use></svg>
+            </a>
+          </div>
+
+          <ul class="hero-stats-inline">
+            <li class="stat-inline-box">
+              <span class="stat-inline-num" data-target="27">0</span>
+              <span class="stat-inline-lbl">Espacios registrados</span>
+            </li>
+            <li class="stat-inline-box">
+              <span class="stat-inline-num" data-target="7">0</span>
+              <span class="stat-inline-lbl">Municipios</span>
+            </li>
+            <li class="stat-inline-box">
+              <span class="stat-inline-num" data-target="5">0</span>
+              <span class="stat-inline-lbl">Tipos de recinto</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="hero-media-panel">
+          <figure class="hero-image-frame">
+            <img src="assets/equipo.jpeg" alt="Integrantes del colectivo Vendaval durante una jornada de trabajo en las oficinas del IAJU" class="hero-team-img" width="1600" height="1200" decoding="async" fetchpriority="high">
+            <figcaption class="hero-image-overlay">
+              <span class="pulse-dot" aria-hidden="true"></span>
+              <span>Colectivo Vendaval · IAJU</span>
+            </figcaption>
+          </figure>
         </div>
       </div>
 
-      <div class="team-layout">
-        <!-- Yoalli -->
-        <div class="team-member-card">
-          <div class="member-avatar">YR</div>
-          <h3>Yoalli Ramírez</h3>
-          <span class="member-role">Coordinadora General</span>
-          <p class="member-bio">Enlace principal, seguimiento general y aseguramiento de metas en tiempo.</p>
+      <a href="#proposito" class="hero-scroll">
+        <span class="vd-visually-hidden">Ir a la sección Cómo funciona</span>
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-flecha-abajo"></use></svg>
+      </a>
+    </section>
+
+    <!-- ------------------------- Propósito del proyecto ------------------------- -->
+    <section class="proposito-section" id="proposito" aria-labelledby="proposito-titulo">
+      <div class="container">
+        <div class="section-title-wrapper">
+          <p class="subtitle-badge">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-hoja"></use></svg>
+            Cómo funciona
+          </p>
+          <h2 class="section-main-title" id="proposito-titulo">Del clima de hoy al espacio cultural más cercano</h2>
+          <p class="section-subtitle">Tres pasos para que el calor no sea un obstáculo para asistir a la vida cultural del estado.</p>
         </div>
 
-        <!-- Victoria -->
-        <div class="team-member-card">
-          <div class="member-avatar">VA</div>
-          <h3>Victoria Acevedo</h3>
-          <span class="member-role">Coordinación Operativa</span>
-          <p class="member-bio">Planeación, proyectos, logística de campo y diseño de marca.</p>
-        </div>
+        <ol class="proposito-pasos">
+          <li class="paso-card">
+            <span class="paso-num" aria-hidden="true">01</span>
+            <svg class="icon icon-lg paso-icono" aria-hidden="true" focusable="false"><use href="#icono-termometro"></use></svg>
+            <h3 class="paso-titulo">Consulta el clima de tu municipio</h3>
+            <p class="paso-desc">El asistente lee temperatura, humedad, índice UV y viento de la estación más cercana y avisa cuando conviene buscar sombra o hidratarse.</p>
+          </li>
+          <li class="paso-card">
+            <span class="paso-num" aria-hidden="true">02</span>
+            <svg class="icon icon-lg paso-icono" aria-hidden="true" focusable="false"><use href="#icono-filtro"></use></svg>
+            <h3 class="paso-titulo">Filtra por agua, sombra y aire</h3>
+            <p class="paso-desc">Combina el buscador con los filtros de recinto, municipio y servicios de confort para quedarte solo con los espacios que resuelven tu visita.</p>
+          </li>
+          <li class="paso-card">
+            <span class="paso-num" aria-hidden="true">03</span>
+            <svg class="icon icon-lg paso-icono" aria-hidden="true" focusable="false"><use href="#icono-brujula"></use></svg>
+            <h3 class="paso-titulo">Llega con la ruta y la ficha</h3>
+            <p class="paso-desc">Cada espacio abre su ficha con dirección, teléfono, servicios de confort y enlace a Google Maps; el mapa traza la ruta al bebedero más cercano.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
 
-        <!-- Patricio -->
-        <div class="team-member-card">
-          <div class="member-avatar">PH</div>
-          <h3>Patricio Hernández</h3>
-          <span class="member-role">Relaciones Públicas</span>
-          <p class="member-bio">Enlace externo, gestión de aliados gubernamentales y empresariales.</p>
-        </div>
+    <!-- --------------------------- Asistente climático --------------------------- -->
+    <section class="clima-section" id="clima-asistente" aria-labelledby="clima-titulo">
+      <div class="container">
+        <div class="clima-card-hero">
+          <div class="clima-header">
+            <div class="clima-title-block">
+              <p class="subtitle-badge badge-clima">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-hoja"></use></svg>
+                Confort ambiental y salud
+              </p>
+              <h2 class="clima-main-title" id="clima-titulo">Asistente climático y GPS</h2>
+              <p class="clima-subtitle">Monitoreo en vivo de microclimas, temperatura, índice UV y red de hidratación gratuita en Aguascalientes.</p>
+              <p class="clima-actualizacion">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-reloj"></use></svg>
+                Los valores se actualizan al elegir otra estación municipal o al activar el GPS.
+              </p>
+            </div>
+            <button type="button" id="gpsLocateBtn" class="btn btn-glow btn-gps">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-ubicacion"></use></svg>
+              Activar mi ubicación GPS
+            </button>
+          </div>
 
-        <!-- Daniel -->
-        <div class="team-member-card">
-          <div class="member-avatar">DJ</div>
-          <h3>Daniel Junco</h3>
-          <span class="member-role">Emprendimiento y Talento</span>
-          <p class="member-bio">Coordinación de actividades de desarrollo personal, liderazgo y talento joven.</p>
-        </div>
+          <!-- Selector de estación municipal -->
+          <div class="muni-weather-bar">
+            <p class="muni-weather-label" id="muni-weather-label">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-ubicacion"></use></svg>
+              Estación municipal
+            </p>
+            <div class="muni-chips-row" id="muniWeatherChips" role="group" aria-labelledby="muni-weather-label">
+              <button type="button" class="muni-chip active" data-muni="Aguascalientes" aria-pressed="true">Aguascalientes</button>
+              <button type="button" class="muni-chip" data-muni="Calvillo" aria-pressed="false">Calvillo</button>
+              <button type="button" class="muni-chip" data-muni="Jesús María" aria-pressed="false">Jesús María</button>
+              <button type="button" class="muni-chip" data-muni="Rincón de Romos" aria-pressed="false">Rincón de Romos</button>
+              <button type="button" class="muni-chip" data-muni="San José de Gracia" aria-pressed="false">San José de Gracia</button>
+              <button type="button" class="muni-chip" data-muni="Pabellón de Arteaga" aria-pressed="false">Pabellón de Arteaga</button>
+              <button type="button" class="muni-chip" data-muni="San Francisco de los Romo" aria-pressed="false">S. Fco. de los Romo</button>
+              <button type="button" class="muni-chip" data-muni="Asientos" aria-pressed="false">Asientos</button>
+              <button type="button" class="muni-chip" data-muni="Cosío" aria-pressed="false">Cosío</button>
+              <button type="button" class="muni-chip" data-muni="El Llano" aria-pressed="false">El Llano</button>
+              <button type="button" class="muni-chip" data-muni="Tepezalá" aria-pressed="false">Tepezalá</button>
+            </div>
+          </div>
 
-        <!-- Adriana -->
-        <div class="team-member-card">
-          <div class="member-avatar">AM</div>
-          <h3>Adriana Martínez</h3>
-          <span class="member-role">Administración de Recursos</span>
-          <p class="member-bio">Gestión de recursos asignados, control de inventario y transparencia.</p>
-        </div>
+          <!-- Valores de clima: región dinámica de cortesía -->
+          <div class="clima-stats-grid" id="climaStatsGrid" aria-live="polite" aria-atomic="false">
+            <div class="clima-stat-box">
+              <span class="clima-stat-icon" aria-hidden="true">
+                <svg class="icon icon-lg" focusable="false"><use href="#icono-termometro"></use></svg>
+              </span>
+              <div class="clima-stat-body">
+                <p class="clima-stat-val" id="weatherTemp">-- °C</p>
+                <p class="clima-stat-lbl">Temperatura actual</p>
+                <p class="clima-stat-sub" id="weatherFeels">Sensación: -- °C</p>
+              </div>
+            </div>
 
-        <!-- Eduardo -->
-        <div class="team-member-card">
-          <div class="member-avatar">EC</div>
-          <h3>Eduardo Castañeda</h3>
-          <span class="member-role">Movilización Territorial</span>
-          <p class="member-bio">Coordinación de participación social y flujo de información en territorio.</p>
-        </div>
+            <div class="clima-stat-box">
+              <span class="clima-stat-icon" aria-hidden="true">
+                <svg class="icon icon-lg" focusable="false"><use href="#icono-gota"></use></svg>
+              </span>
+              <div class="clima-stat-body">
+                <p class="clima-stat-val" id="weatherHumidity">-- %</p>
+                <p class="clima-stat-lbl">Humedad y confort</p>
+                <p class="clima-stat-sub" id="weatherHumidityDesc">Agradable</p>
+              </div>
+            </div>
 
-        <!-- Estephani -->
-        <div class="team-member-card">
-          <div class="member-avatar">EG</div>
-          <h3>Estephani Gallegos</h3>
-          <span class="member-role">Comunicación Social</span>
-          <p class="member-bio">Diseño de contenidos, coberturas y visibilización de actividades.</p>
+            <div class="clima-stat-box">
+              <span class="clima-stat-icon" aria-hidden="true">
+                <svg class="icon icon-lg" focusable="false"><use href="#icono-sol"></use></svg>
+              </span>
+              <div class="clima-stat-body">
+                <p class="clima-stat-val" id="weatherUV">--</p>
+                <p class="clima-stat-lbl">Índice UV solar</p>
+                <p class="clima-stat-sub" id="weatherUVBadge"><span class="uv-tag uv-mod">Moderado</span></p>
+              </div>
+            </div>
+
+            <div class="clima-stat-box">
+              <span class="clima-stat-icon" aria-hidden="true">
+                <svg class="icon icon-lg" focusable="false"><use href="#icono-viento"></use></svg>
+              </span>
+              <div class="clima-stat-body">
+                <p class="clima-stat-val" id="weatherWind">-- km/h</p>
+                <p class="clima-stat-lbl">Viento y aire</p>
+                <p class="clima-stat-sub" id="weatherAirQuality">Aire limpio</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="clima-recommendation-panel" id="climaRecPanel">
+            <p class="clima-rec-badge" id="climaRecBadge">Estado del tiempo</p>
+            <h3 class="clima-rec-title" id="climaRecTitle">Obteniendo clima en vivo</h3>
+            <p class="clima-rec-desc" id="climaRecDesc">Activa tu GPS para calcular el espacio con agua potable o climatización más cercano a tu ubicación exacta.</p>
+
+            <div class="clima-quick-actions" role="group" aria-label="Búsquedas rápidas de confort">
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFindWater">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-gota"></use></svg>
+                Buscar agua potable gratis
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFindShade">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-aire"></use></svg>
+                Buscar refugio con aire acondicionado
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btnFindWarm">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-edificio"></use></svg>
+                Buscar espacio techado
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Footer -->
-  <footer class="main-footer">
+    <!-- -------------------------------- Directorio ------------------------------- -->
+    <section class="espacios-section" id="espacios" aria-labelledby="espacios-titulo">
+      <div class="container">
+        <div class="section-title-wrapper text-center">
+          <p class="subtitle-badge">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-edificio"></use></svg>
+            Cartografía interactiva
+          </p>
+          <h2 class="section-main-title" id="espacios-titulo">Directorio de espacios culturales</h2>
+          <p class="section-subtitle">Busca y filtra espacios en todo el estado. Al elegir una tarjeta se abre su ficha y el mapa se centra en su ubicación.</p>
+        </div>
+
+        <div class="controls-panel">
+          <div class="search-and-add-row">
+            <div class="search-wrapper">
+              <label class="vd-visually-hidden" for="searchInput">Buscar espacio cultural por nombre, calle o municipio</label>
+              <span class="search-icon" aria-hidden="true">
+                <svg class="icon" focusable="false"><use href="#icono-busqueda"></use></svg>
+              </span>
+              <input type="search" id="searchInput" class="search-input" placeholder="Nombre del espacio, calle o municipio" autocomplete="off" maxlength="100">
+              <button type="button" id="clearSearch" class="clear-search-btn" aria-label="Limpiar la búsqueda" hidden>
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-cerrar"></use></svg>
+              </button>
+            </div>
+            <button type="button" id="syncGmapsBtn" class="btn btn-secondary">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-sincronizar"></use></svg>
+              Sincronizar Google Maps
+            </button>
+            <button type="button" id="openAddSpaceBtn" class="btn btn-glow">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-mas"></use></svg>
+              Agregar espacio
+            </button>
+          </div>
+
+          <div class="filters-container">
+            <div class="filter-group">
+              <p class="filter-label" id="filtro-recinto-label">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-edificio"></use></svg>
+                Recinto
+              </p>
+              <div class="chips-row" id="typeChips" role="group" aria-labelledby="filtro-recinto-label">
+                <button type="button" class="chip active" data-type="all" aria-pressed="true">Todos</button>
+                <button type="button" class="chip" data-type="Casa de Cultura" aria-pressed="false">Casas de Cultura</button>
+                <button type="button" class="chip" data-type="Teatro" aria-pressed="false">Teatros</button>
+                <button type="button" class="chip" data-type="Centro Cultural" aria-pressed="false">Centros Culturales</button>
+                <button type="button" class="chip" data-type="Galería de Arte" aria-pressed="false">Galerías</button>
+                <button type="button" class="chip" data-type="Centro Comunitario" aria-pressed="false">Centros Comunitarios</button>
+                <button type="button" class="chip" data-type="Biblioteca" aria-pressed="false">Bibliotecas</button>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <p class="filter-label" id="filtro-territorio-label">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-mapa"></use></svg>
+                Territorio
+              </p>
+              <div class="chips-row" id="municipioChips" role="group" aria-labelledby="filtro-territorio-label">
+                <button type="button" class="chip active" data-municipio="all" aria-pressed="true">Todos los municipios</button>
+                <button type="button" class="chip" data-municipio="Aguascalientes" aria-pressed="false">Aguascalientes</button>
+                <button type="button" class="chip" data-municipio="San José de Gracia" aria-pressed="false">San José de Gracia</button>
+                <button type="button" class="chip" data-municipio="San Francisco de los Romo" aria-pressed="false">S. Francisco de los Romo</button>
+                <button type="button" class="chip" data-municipio="Rincón de Romos" aria-pressed="false">Rincón de Romos</button>
+                <button type="button" class="chip" data-municipio="Jesús María" aria-pressed="false">Jesús María</button>
+                <button type="button" class="chip" data-municipio="Calvillo" aria-pressed="false">Calvillo</button>
+                <button type="button" class="chip" data-municipio="Pabellón de Arteaga" aria-pressed="false">Pabellón de Arteaga</button>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <p class="filter-label" id="filtro-confort-label">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-hoja"></use></svg>
+                Servicios de confort e hidratación
+              </p>
+              <div class="chips-row" id="comfortChips" role="group" aria-labelledby="filtro-confort-label">
+                <button type="button" class="chip active" data-comfort="all" aria-pressed="true">Todos</button>
+                <button type="button" class="chip" data-comfort="water" aria-pressed="false">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-gota"></use></svg>
+                  Agua gratis
+                </button>
+                <button type="button" class="chip" data-comfort="ac" aria-pressed="false">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-aire"></use></svg>
+                  Climatización
+                </button>
+                <button type="button" class="chip" data-comfort="shade" aria-pressed="false">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-arbol"></use></svg>
+                  Sombra y frescor
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="results-bar">
+          <p class="results-count" id="resultsCount" role="status" aria-live="polite" aria-atomic="true">Cargando espacios</p>
+        </div>
+
+        <!-- Tarjetas inyectadas por app.js -->
+        <div class="spaces-grid" id="spacesGrid"></div>
+
+        <div class="empty-state" id="emptyState" hidden>
+          <span class="empty-icon" aria-hidden="true">
+            <svg class="icon icon-xl" focusable="false"><use href="#icono-sin-resultados"></use></svg>
+          </span>
+          <h3>Sin resultados</h3>
+          <p>No encontramos espacios culturales con los filtros seleccionados.</p>
+          <button type="button" id="resetFiltersBtn" class="btn btn-secondary btn-sm">Restablecer filtros</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ----------------------------- Mapa interactivo ---------------------------- -->
+    <section class="mapa-section" id="mapa-section" aria-labelledby="mapa-titulo">
+      <div class="container">
+        <div class="mapa-layout">
+          <div class="mapa-header-info">
+            <p class="subtitle-badge">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-brujula"></use></svg>
+              Geolocalización
+            </p>
+            <h2 class="section-main-title" id="mapa-titulo">Mapa de distribución</h2>
+            <p class="section-subtitle">Explora la infraestructura cultural pública, el calor urbano y la red de agua potable. Acerca el mapa y abre los pines para ver detalles.</p>
+
+            <div class="mapa-actions">
+              <a href="https://www.google.com/maps/@22.0409642,-102.6739162,120170m/data=!3m1!1e3!4m2!11m1!2sGzNGWQCSTaKUCoHh621-3g?entry=ttu&amp;g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener noreferrer" class="btn btn-glow" id="sectionGmapsLink">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-mapa"></use></svg>
+                Abrir mapa oficial de Google
+                <span class="vd-visually-hidden">(sitio externo, se abre en una ventana nueva)</span>
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-enlace-externo"></use></svg>
+              </a>
+              <button type="button" id="syncGmapsBtnMap" class="btn btn-secondary">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-sincronizar"></use></svg>
+                Sincronizar en vivo
+              </button>
+            </div>
+
+            <div class="map-legend-panel">
+              <h3 class="map-legend-titulo">Tipos de recinto</h3>
+              <ul class="legend-list">
+                <li><span class="legend-dot dot-casa" aria-hidden="true"></span> Casas de Cultura</li>
+                <li><span class="legend-dot dot-teatro" aria-hidden="true"></span> Teatros</li>
+                <li><span class="legend-dot dot-centro" aria-hidden="true"></span> Centros Culturales</li>
+                <li><span class="legend-dot dot-galeria" aria-hidden="true"></span> Galerías de Arte</li>
+                <li><span class="legend-dot dot-comunitario" aria-hidden="true"></span> Centros Comunitarios</li>
+                <li><span class="legend-dot dot-biblioteca" aria-hidden="true"></span> Bibliotecas</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="mapa-container-wrapper">
+            <div class="map-layer-switcher" id="mapLayerSwitcher" role="group" aria-labelledby="mapa-capas-label">
+              <p class="switcher-label" id="mapa-capas-label">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-capas"></use></svg>
+                Capas del mapa
+              </p>
+              <button type="button" class="layer-chip active" data-layer="spaces" aria-pressed="true">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-edificio"></use></svg>
+                Recintos
+              </button>
+              <button type="button" class="layer-chip" data-layer="heat" aria-pressed="false">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-termometro"></use></svg>
+                Mapa de calor
+              </button>
+              <button type="button" class="layer-chip" data-layer="water" aria-pressed="false">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-gota"></use></svg>
+                Mapa de agua
+              </button>
+              <button type="button" class="layer-chip" data-layer="weather" aria-pressed="false">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-nube-sol"></use></svg>
+                Clima actual
+              </button>
+            </div>
+
+            <!-- Panel flotante: mapa de calor -->
+            <div class="map-floating-overlay" id="heatOverlayPanel" hidden>
+              <div class="overlay-header">
+                <p class="overlay-title">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-termometro"></use></svg>
+                  Control térmico e isla de calor
+                </p>
+                <span class="overlay-badge" id="heatModeBadge">Microclima urbano</span>
+              </div>
+              <ul class="thermal-scale-bar">
+                <li class="scale-segment seg-cool"><span>&lt;20 °C</span> Fresco</li>
+                <li class="scale-segment seg-comfort"><span>20-25 °C</span> Confort</li>
+                <li class="scale-segment seg-warm"><span>26-30 °C</span> Cálido</li>
+                <li class="scale-segment seg-hot"><span>&gt;30 °C</span> Isla de calor</li>
+              </ul>
+              <div class="overlay-controls" role="group" aria-label="Modo del mapa de calor">
+                <button type="button" class="overlay-btn active" id="btnHeatModeIsland" aria-pressed="true">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-fuego"></use></svg>
+                  Isla de calor
+                </button>
+                <button type="button" class="overlay-btn" id="btnHeatModeShade" aria-pressed="false">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-arbol"></use></svg>
+                  Confort y sombra
+                </button>
+              </div>
+            </div>
+
+            <!-- Panel flotante: red de agua -->
+            <div class="map-floating-overlay" id="waterOverlayPanel" hidden>
+              <div class="overlay-header">
+                <p class="overlay-title">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-agua"></use></svg>
+                  Red de hidratación gratuita
+                </p>
+                <span class="overlay-badge" id="waterStatsCount">27 puntos</span>
+              </div>
+              <div class="water-subfilters" id="waterSubfilters" role="group" aria-label="Tipo de punto de agua">
+                <button type="button" class="water-chip active" data-watersub="all" aria-pressed="true">Todos</button>
+                <button type="button" class="water-chip" data-watersub="bebedero" aria-pressed="false">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-agua"></use></svg>
+                  Bebederos
+                </button>
+                <button type="button" class="water-chip" data-watersub="fria" aria-pressed="false">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-aire"></use></svg>
+                  Agua fría
+                </button>
+                <button type="button" class="water-chip" data-watersub="garrafon" aria-pressed="false">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-gota"></use></svg>
+                  Garrafones
+                </button>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm btn-block btn-ruta-agua" id="btnFindNearestWater">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-brujula"></use></svg>
+                Ruta al punto de agua más cercano
+              </button>
+            </div>
+
+            <!-- Panel flotante: estaciones meteorológicas -->
+            <div class="map-floating-overlay" id="weatherOverlayPanel" hidden>
+              <div class="overlay-header">
+                <p class="overlay-title">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-nube-sol"></use></svg>
+                  Estaciones meteorológicas
+                </p>
+                <span class="overlay-badge">11 municipios</span>
+              </div>
+              <p class="overlay-info-text">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-info"></use></svg>
+                Abre cualquier insignia de temperatura para ver el pronóstico en vivo y filtrar los recintos de ese municipio.
+              </p>
+            </div>
+
+            <div id="leafletMap" class="leaflet-map-element" role="region" aria-label="Mapa interactivo de espacios culturales de Aguascalientes"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------------------------- Equipo --------------------------------- -->
+    <section class="equipo-section" id="equipo" aria-labelledby="equipo-titulo">
+      <div class="container">
+        <div class="team-intro-layout">
+          <figure class="team-photo-frame">
+            <img src="assets/equipo.jpeg" alt="Las siete personas del colectivo Vendaval reunidas frente al muro de la sala de juntas" class="team-group-img" width="1600" height="1200" loading="lazy" decoding="async">
+            <figcaption class="team-photo-caption">
+              <span>Colectivo Vendaval en las oficinas del IAJU, junio de 2026</span>
+            </figcaption>
+          </figure>
+          <div class="team-intro-text">
+            <p class="subtitle-badge">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-equipo"></use></svg>
+              Colectivo
+            </p>
+            <h2 class="section-main-title" id="equipo-titulo">Conoce a Vendaval</h2>
+            <p class="section-subtitle">
+              Somos un equipo multidisciplinario de jóvenes en Aguascalientes comprometidos con la reactivación cultural y la concientización del agua. En colaboración con el IAJU desarrollamos este mapeo interactivo de espacios públicos para toda la ciudadanía.
+            </p>
+          </div>
+        </div>
+
+        <ul class="team-layout">
+          <li class="team-member-card">
+            <span class="member-avatar" aria-hidden="true">YR</span>
+            <h3>Yoalli Ramírez</h3>
+            <p class="member-role">Coordinadora General</p>
+            <p class="member-bio">Enlace principal, seguimiento general y aseguramiento de metas en tiempo.</p>
+          </li>
+          <li class="team-member-card">
+            <span class="member-avatar" aria-hidden="true">VA</span>
+            <h3>Victoria Acevedo</h3>
+            <p class="member-role">Coordinación Operativa</p>
+            <p class="member-bio">Planeación, proyectos, logística de campo y diseño de marca.</p>
+          </li>
+          <li class="team-member-card">
+            <span class="member-avatar" aria-hidden="true">PH</span>
+            <h3>Patricio Hernández</h3>
+            <p class="member-role">Relaciones Públicas</p>
+            <p class="member-bio">Enlace externo, gestión de aliados gubernamentales y empresariales.</p>
+          </li>
+          <li class="team-member-card">
+            <span class="member-avatar" aria-hidden="true">DJ</span>
+            <h3>Daniel Junco</h3>
+            <p class="member-role">Emprendimiento y Talento</p>
+            <p class="member-bio">Coordinación de actividades de desarrollo personal, liderazgo y talento joven.</p>
+          </li>
+          <li class="team-member-card">
+            <span class="member-avatar" aria-hidden="true">AM</span>
+            <h3>Adriana Martínez</h3>
+            <p class="member-role">Administración de Recursos</p>
+            <p class="member-bio">Gestión de recursos asignados, control de inventario y transparencia.</p>
+          </li>
+          <li class="team-member-card">
+            <span class="member-avatar" aria-hidden="true">EC</span>
+            <h3>Eduardo Castañeda</h3>
+            <p class="member-role">Movilización Territorial</p>
+            <p class="member-bio">Coordinación de participación social y flujo de información en territorio.</p>
+          </li>
+          <li class="team-member-card">
+            <span class="member-avatar" aria-hidden="true">EG</span>
+            <h3>Estephani Gallegos</h3>
+            <p class="member-role">Comunicación Social</p>
+            <p class="member-bio">Diseño de contenidos, coberturas y visibilización de actividades.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================== Pie de página ============================== -->
+  <footer class="main-footer" aria-labelledby="footer-titulo">
     <div class="container">
+      <h2 class="vd-visually-hidden" id="footer-titulo">Créditos, navegación y fuentes de datos</h2>
+
       <div class="footer-top">
         <div class="footer-brand">
           <div class="footer-logo-wrapper">
-            <img src="assets/logo.png" alt="Logo Vendaval" class="footer-logo-img">
+            <img src="assets/logo.png" alt="" aria-hidden="true" width="420" height="426" loading="lazy" decoding="async" class="footer-logo-img">
             <span class="footer-logo-text">VENDAVAL</span>
           </div>
           <p class="footer-tagline">Organización · Adaptabilidad · Empatía · Transparencia · Amplificación</p>
+          <p class="footer-colaboracion">Proyecto del Colectivo Vendaval en colaboración con el Instituto de las Juventudes del Estado de Aguascalientes (IAJU).</p>
         </div>
-        <div class="footer-links">
-          <a href="#hero">Inicio</a>
-          
-          <a href="#espacios">Directorio</a>
-          <a href="#mapa-section">Mapa</a>
-          <a href="#equipo">Equipo</a>
+
+        <nav class="footer-nav" aria-label="Navegación del pie de página">
+          <h3 class="footer-col-titulo">Secciones</h3>
+          <ul class="footer-links">
+            <li><a href="#hero">Inicio</a></li>
+            <li><a href="#proposito">Proyecto</a></li>
+            <li><a href="#clima-asistente">Clima y GPS</a></li>
+            <li><a href="#espacios">Directorio</a></li>
+            <li><a href="#mapa-section">Mapa</a></li>
+            <li><a href="#equipo">Equipo</a></li>
+          </ul>
+        </nav>
+
+        <div class="footer-fuentes">
+          <h3 class="footer-col-titulo">Fuentes de datos</h3>
+          <ul class="footer-fuentes-list">
+            <li>
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">
+                OpenStreetMap
+                <span class="vd-visually-hidden">(sitio externo, se abre en una ventana nueva)</span>
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-enlace-externo"></use></svg>
+              </a>
+              <span class="footer-fuente-nota">Cartografía base</span>
+            </li>
+            <li>
+              <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">
+                CARTO
+                <span class="vd-visually-hidden">(sitio externo, se abre en una ventana nueva)</span>
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-enlace-externo"></use></svg>
+              </a>
+              <span class="footer-fuente-nota">Teselas del mapa</span>
+            </li>
+            <li>
+              <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">
+                Open-Meteo
+                <span class="vd-visually-hidden">(sitio externo, se abre en una ventana nueva)</span>
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-enlace-externo"></use></svg>
+              </a>
+              <span class="footer-fuente-nota">Clima e índice UV</span>
+            </li>
+          </ul>
         </div>
       </div>
+
       <div class="footer-bottom">
         <p>© 2026 Colectivo Vendaval. Impulsado por el Instituto de las Juventudes del Estado de Aguascalientes.</p>
+        <a class="footer-top-link" href="#contenido">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-flecha-arriba"></use></svg>
+          Volver al inicio
+        </a>
       </div>
     </div>
   </footer>
 
-  <!-- Detail Drawer for Mobile & Desktop -->
+  <!-- ====================== Ficha de espacio (panel diálogo) ====================== -->
   <div class="drawer-backdrop" id="drawerBackdrop">
-    <div class="drawer" id="spaceDrawer">
-      <button class="drawer-close-btn" id="drawerClose" aria-label="Cerrar detalles">&times;</button>
-      
+    <div class="drawer" id="spaceDrawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" tabindex="-1">
+      <button type="button" class="drawer-close-btn" id="drawerClose" aria-label="Cerrar la ficha del espacio">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-cerrar"></use></svg>
+      </button>
+
       <div class="drawer-header">
-        <span class="space-badge" id="drawerBadge">Casa de la Cultura</span>
-        <h3 class="drawer-title" id="drawerTitle">Instituto Cultural de Aguascalientes</h3>
+        <p class="space-badge" id="drawerBadge">Casa de Cultura</p>
+        <h2 class="drawer-title" id="drawerTitle">Instituto Cultural de Aguascalientes</h2>
       </div>
-      
+
       <div class="drawer-body">
         <div class="drawer-info-block">
-          <div class="info-label">📍 Dirección</div>
-          <div class="info-value" id="drawerAddress">Venustiano Carranza 101, Centro, 20000 Aguascalientes, Ags.</div>
+          <p class="info-label">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-ubicacion"></use></svg>
+            Dirección
+          </p>
+          <p class="info-value" id="drawerAddress">Venustiano Carranza 101, Centro, 20000 Aguascalientes, Ags.</p>
         </div>
-        
+
         <div class="drawer-info-block">
-          <div class="info-label">📞 Teléfono de contacto</div>
-          <div class="info-value" id="drawerPhone">449 910 2010</div>
+          <p class="info-label">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-telefono"></use></svg>
+            Teléfono de contacto
+          </p>
+          <p class="info-value" id="drawerPhone">449 910 2010</p>
         </div>
-        
+
         <div class="drawer-info-block">
-          <div class="info-label">🏛️ Adscripción y Municipio</div>
-          <div class="info-value" id="drawerMunicipio">Aguascalientes (Zona Centro)</div>
+          <p class="info-label">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-edificio"></use></svg>
+            Adscripción y municipio
+          </p>
+          <p class="info-value" id="drawerMunicipio">Aguascalientes (Zona Centro)</p>
         </div>
 
         <div class="drawer-info-block comfort-info-section">
-          <div class="info-label">🌱 Servicios y Confort Climático</div>
+          <p class="info-label">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-hoja"></use></svg>
+            Servicios y confort climático
+          </p>
           <div class="comfort-badges-grid" id="drawerComfortBadges">
-            <span class="comfort-chip chip-water" id="drawerWaterChip">💧 Agua Potable Gratis</span>
-            <span class="comfort-chip chip-ac" id="drawerAcChip">❄️ Aire Acondicionado</span>
-            <span class="comfort-chip chip-shade" id="drawerShadeChip">🌳 Sombra Alta</span>
+            <span class="comfort-chip chip-water" id="drawerWaterChip">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-agua"></use></svg>
+              Agua potable gratis
+            </span>
+            <span class="comfort-chip chip-ac" id="drawerAcChip">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-aire"></use></svg>
+              Aire acondicionado
+            </span>
+            <span class="comfort-chip chip-shade">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-arbol"></use></svg>
+              <span id="drawerShadeChip">Sombra Alta</span>
+            </span>
           </div>
-          <div class="info-value-sub" id="drawerComfortDesc">Espacio óptimo para resguardo térmico e hidratación.</div>
+          <p class="info-value-sub" id="drawerComfortDesc">Espacio óptimo para resguardo térmico e hidratación.</p>
         </div>
       </div>
-      
+
       <div class="drawer-footer">
-        <a href="#" target="_blank" rel="noopener" class="btn btn-glow btn-block" id="drawerMapsLink">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" class="btn btn-glow btn-block" id="drawerMapsLink">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-ubicacion"></use></svg>
           Cómo llegar (Google Maps)
+          <span class="vd-visually-hidden">(sitio externo, se abre en una ventana nueva)</span>
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-enlace-externo"></use></svg>
         </a>
       </div>
     </div>
   </div>
 
-  <!-- Add Space Modal -->
+  <!-- ==================== Formulario de alta (diálogo modal) ==================== -->
   <div class="modal-overlay" id="addSpaceModalOverlay">
-    <div class="modal-card" id="addSpaceModal">
-      <button class="modal-close-btn" id="closeAddSpaceModal" aria-label="Cerrar">&times;</button>
+    <div class="modal-card" id="addSpaceModal" role="dialog" aria-modal="true" aria-labelledby="addSpaceModalTitle" tabindex="-1">
+      <button type="button" class="modal-close-btn" id="closeAddSpaceModal" aria-label="Cerrar el formulario de alta">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-cerrar"></use></svg>
+      </button>
+
       <div class="modal-header">
-        <h3 class="modal-title">Agregar Espacio Cultural / Negocio</h3>
+        <h2 class="modal-title" id="addSpaceModalTitle">Agregar espacio cultural o negocio</h2>
         <p class="modal-subtitle">Registra un nuevo espacio público o negocio con servicios climáticos.</p>
       </div>
+
       <form id="addSpaceForm" class="modal-form">
         <div class="form-group">
-          <label for="spaceNameInput">Nombre del Recinto / Negocio *</label>
-          <input type="text" id="spaceNameInput" required placeholder="Ej. Casa de la Cultura El Pinar">
+          <label for="spaceNameInput">Nombre del recinto o negocio *</label>
+          <input type="text" id="spaceNameInput" required placeholder="Casa de la Cultura El Pinar">
         </div>
         <div class="form-group">
-          <label for="spaceAddressInput">Dirección Completa *</label>
-          <input type="text" id="spaceAddressInput" required placeholder="Ej. Av. de la Convención 1914 Norte">
+          <label for="spaceAddressInput">Dirección completa *</label>
+          <input type="text" id="spaceAddressInput" required placeholder="Av. de la Convención 1914 Norte">
         </div>
+
         <div class="form-group-row">
           <div class="form-group">
-            <label for="spaceTypeInput">Tipo de Recinto *</label>
+            <label for="spaceTypeInput">Tipo de recinto *</label>
             <select id="spaceTypeInput" required>
-              <option value="" disabled selected>Selecciona tipo...</option>
+              <option value="" disabled selected>Selecciona tipo</option>
               <option value="Casa de Cultura">Casa de Cultura</option>
               <option value="Teatro">Teatro</option>
               <option value="Centro Cultural">Centro Cultural</option>
@@ -559,7 +1001,7 @@
           <div class="form-group">
             <label for="spaceMunicipioInput">Municipio *</label>
             <select id="spaceMunicipioInput" required>
-              <option value="" disabled selected>Selecciona municipio...</option>
+              <option value="" disabled selected>Selecciona municipio</option>
               <option value="Aguascalientes">Aguascalientes</option>
               <option value="San José de Gracia">San José de Gracia</option>
               <option value="San Francisco de los Romo">San Francisco de los Romo</option>
@@ -573,61 +1015,77 @@
 
         <div class="form-group-row">
           <div class="form-group">
-            <label for="spaceShadeInput">Nivel de Sombra / Resguardo</label>
+            <label for="spaceShadeInput">Nivel de sombra o resguardo</label>
             <select id="spaceShadeInput">
-              <option value="Alta">Alta (Arbolado / Techado)</option>
-              <option value="Media">Media (Sombra parcial)</option>
-              <option value="Baja">Baja (Exposición solar)</option>
+              <option value="Alta">Alta (arbolado o techado)</option>
+              <option value="Media">Media (sombra parcial)</option>
+              <option value="Baja">Baja (exposición solar)</option>
             </select>
           </div>
-          <div class="form-group checkboxes-group" style="display: flex; flex-direction: column; justify-content: center; gap: 8px;">
-            <label class="checkbox-label">
-              <input type="checkbox" id="spaceWaterInput" checked> 💧 Punto de Agua Potable Gratis
+          <fieldset class="form-group checkboxes-group">
+            <legend class="filter-label">Servicios de confort</legend>
+            <label class="checkbox-label" for="spaceWaterInput">
+              <input type="checkbox" id="spaceWaterInput" checked>
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-agua"></use></svg>
+              Punto de agua potable gratis
             </label>
-            <label class="checkbox-label">
-              <input type="checkbox" id="spaceAcInput" checked> ❄️ Aire Acondicionado / Climatización
+            <label class="checkbox-label" for="spaceAcInput">
+              <input type="checkbox" id="spaceAcInput" checked>
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-aire"></use></svg>
+              Aire acondicionado o climatización
             </label>
-          </div>
+          </fieldset>
         </div>
+
         <div class="form-group-row">
           <div class="form-group">
             <label for="spacePhoneInput">Teléfono de contacto</label>
-            <input type="text" id="spacePhoneInput" placeholder="Ej. 449 123 4567">
+            <input type="tel" id="spacePhoneInput" placeholder="449 123 4567">
           </div>
           <div class="form-group">
-            <label for="spaceMapQueryInput">Término de búsqueda (Google Maps)</label>
-            <input type="text" id="spaceMapQueryInput" placeholder="Ej. Casa+Cultura+Pinar+Aguascalientes">
+            <label for="spaceMapQueryInput">Término de búsqueda en Google Maps</label>
+            <input type="text" id="spaceMapQueryInput" placeholder="Casa+Cultura+Pinar+Aguascalientes">
           </div>
         </div>
-        <div class="form-group" style="margin-top: 10px;">
-          <label for="spaceGmapsUrlInput">🔗 Enlace de Google Maps / Coordenadas (Auto-extrae Lat/Lng)</label>
-          <input type="text" id="spaceGmapsUrlInput" placeholder="Pega aquí el link de Google Maps (ej. https://www.google.com/maps/@21.882,-102.298,17z)">
+
+        <div class="form-group form-group--separado">
+          <label for="spaceGmapsUrlInput">Enlace de Google Maps o coordenadas</label>
+          <input type="url" id="spaceGmapsUrlInput" placeholder="https://www.google.com/maps/@21.882,-102.298,17z" aria-describedby="form-nota-coordenadas">
         </div>
-        <div class="form-note">
-          ℹ️ Las coordenadas geográficas se extraen automáticamente de la URL de Google Maps o se calculan por municipio.
-        </div>
-        <div class="form-group-row" style="margin-top: 10px;">
+
+        <p class="form-note" id="form-nota-coordenadas">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#icono-info"></use></svg>
+          Las coordenadas geográficas se extraen automáticamente de la URL de Google Maps o se calculan por municipio.
+        </p>
+
+        <div class="form-group-row form-group-row--separado">
           <div class="form-group">
-            <label for="spaceLatInput">Latitud (Opcional)</label>
-            <input type="number" step="any" id="spaceLatInput" placeholder="Ej. 21.882">
+            <label for="spaceLatInput">Latitud (opcional)</label>
+            <input type="number" step="any" id="spaceLatInput" placeholder="21.882">
           </div>
           <div class="form-group">
-            <label for="spaceLngInput">Longitud (Opcional)</label>
-            <input type="number" step="any" id="spaceLngInput" placeholder="Ej. -102.298">
+            <label for="spaceLngInput">Longitud (opcional)</label>
+            <input type="number" step="any" id="spaceLngInput" placeholder="-102.298">
           </div>
         </div>
-        <button type="submit" class="btn btn-glow btn-block" style="margin-top: 20px;">Guardar Espacio</button>
+
+        <button type="submit" class="btn btn-glow btn-block modal-form-submit">Guardar espacio</button>
       </form>
     </div>
   </div>
 
-  <!-- Leaflet Map JS -->
+  <!-- Contenedor de avisos de sincronización (app.js inserta aquí los mensajes) -->
+  <div class="toast-container" id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
+  <!--
+    CDNs conservados a propósito: Leaflet y el cliente de Supabase.
+    No existe todavía un proceso de compilación que los empaquete localmente
+    (Requisito 9.6), así que sustituirlos ahora rompería el mapa y la base remota.
+    leaflet.heat se retiró: app.js dibuja el mapa de calor con L.circle y nunca
+    llama a L.heatLayer, así que era una descarga externa sin uso.
+  -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <!-- Leaflet Heatmap Plugin -->
-  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-  <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- Custom Javascript -->
   <script src="app.js"></script>
 </body>
 </html>
