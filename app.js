@@ -781,24 +781,7 @@ window.showSpaceDetailsById = function(id) {
   }
 };
 
-// --- 5. Log Tab System (Bitácora de Campo) ---
-const logTabButtons = document.querySelectorAll(".log-tab-btn");
-const logTabPanes = document.querySelectorAll(".log-tab-pane");
 
-logTabButtons.forEach(btn => {
-  btn.addEventListener("click", () => {
-    const tabName = btn.getAttribute("data-tab");
-    
-    logTabButtons.forEach(b => b.classList.remove("active"));
-    logTabPanes.forEach(p => p.classList.remove("active"));
-    
-    btn.classList.add("active");
-    const activePane = document.getElementById(`tab-${tabName}`);
-    if (activePane) {
-      activePane.classList.add("active");
-    }
-  });
-});
 
 // --- 6. Mobile Navigation Drawer ---
 const navToggle = document.getElementById("navToggle");

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ported verbatim from the `bg-obsidian` custom property in styles.css. -->
+    <color name="vendaval_obsidian">#FF030712</color>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The Compose hierarchy owns all colour decisions; this theme only needs to
+      avoid a white flash before the first frame and hand the window over to
+      Compose for edge-to-edge drawing.
+    -->
+    <style name="Theme.Vendaval" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/vendaval_obsidian</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

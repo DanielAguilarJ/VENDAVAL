@@ -1,0 +1,19 @@
+# Machine-specific SDK location. Every developer's path differs.
+local.properties
+
+# Build output
+build/
+*/build/
+.gradle/
+.kotlin/
+
+# Xcode
+iosApp/**/xcuserdata/
+iosApp/**/*.xcworkspace/xcuserdata/
+iosApp/build/
+*.xcuserstate
+
+# IDE
+.idea/
+*.iml
+.DS_Store

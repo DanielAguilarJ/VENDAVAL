@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Vendaval · rediseño</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Paleta reencuadrada: menos saturación, más profundidad. El cyan deja de estar
+     en todas partes y pasa a ser solo affordance interactiva. */
+  --ink:#0A0E17; --ink-2:#111827; --card:#151C29; --card-hi:#1B2433;
+  --line:#FFFFFF14; --text:#F3F5F8; --muted:#9AA6B8; --faint:#61708A;
+  --accent:#00E0D0;              /* solo para lo interactivo */
+  --casa:#E8853C; --centro:#5B8DEF; --galeria:#A971F0; --teatro:#E8629B; --com:#3FBF8F;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--ink);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+.phone{width:412px;margin:0;background:var(--ink);min-height:900px;position:relative;overflow:hidden}
+.wrap{padding:20px 18px 90px}
+
+/* ── Cabecera: compacta. Antes: 3 stat pills gigantes + CTA cyan a pantalla completa ── */
+.eyebrow{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);font-weight:600}
+h1{font-family:var(--serif);font-size:31px;line-height:1.12;font-weight:600;letter-spacing:-.02em;margin:8px 0 6px}
+h1 em{font-style:italic;font-weight:400;color:var(--muted)}
+.sync{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);margin-bottom:18px}
+.dot{width:6px;height:6px;border-radius:99px;background:#E8A93C}
+
+/* ── Buscador + acción secundaria en una fila ── */
+.row{display:flex;gap:9px;margin-bottom:16px}
+.search{flex:1;display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);
+  border-radius:13px;padding:0 13px;height:46px;color:var(--faint);font-size:14px}
+.iconbtn{width:46px;height:46px;border-radius:13px;background:var(--card);border:1px solid var(--line);
+  display:grid;place-items:center;color:var(--accent);font-size:19px}
+
+/* ── Filtros: UNA fila. El municipio (11 opciones) se va a un sheet, no se desborda ── */
+.chips{display:flex;gap:7px;overflow:hidden;margin-bottom:8px}
+.chip{flex:0 0 auto;padding:8px 13px;border-radius:99px;border:1px solid var(--line);background:transparent;
+  color:var(--muted);font-size:12.5px;font-weight:500;white-space:nowrap}
+.chip.on{background:var(--text);color:var(--ink);border-color:var(--text);font-weight:600}
+.chip.sheet{color:var(--text);border-color:#FFFFFF2E}
+.count{font-size:12px;color:var(--faint);margin:14px 0 11px;display:flex;justify-content:space-between}
+
+/* ── Tarjeta: cover generado + jerarquía real. Es el cambio que más pesa. ── */
+.card{display:flex;gap:13px;padding:11px;background:var(--card);border:1px solid var(--line);
+  border-radius:17px;margin-bottom:10px;align-items:center}
+.cover{width:74px;height:74px;border-radius:12px;flex:0 0 auto;position:relative;overflow:hidden;
+  display:grid;place-items:center}
+.cover span{font-family:var(--serif);font-size:31px;font-weight:600;color:#0A0E17CC;line-height:1}
+.cover::after{content:'';position:absolute;inset:0;
+  background:radial-gradient(120% 90% at 18% 8%,#FFFFFF3D,transparent 60%)}
+.meta{flex:1;min-width:0}
+.name{font-family:var(--serif);font-size:16.5px;font-weight:600;line-height:1.24;letter-spacing:-.01em;
+  margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sub{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.sub b{color:var(--text);font-weight:500}
+.tag{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--faint)}
+.tag i{width:6px;height:6px;border-radius:99px;display:inline-block}
+.star{color:var(--faint);font-size:17px;padding:0 4px;align-self:flex-start}
+
+/* ── Tira de mapa: una app de cartografía debe mostrar cartografía ── */
+.mapstrip{height:112px;border-radius:15px;margin:4px 0 18px;position:relative;overflow:hidden;
+  border:1px solid var(--line);
+  background:
+    radial-gradient(circle at 26% 44%,#5B8DEF44,transparent 26%),
+    radial-gradient(circle at 61% 33%,#E8853C44,transparent 22%),
+    radial-gradient(circle at 44% 68%,#E8629B3D,transparent 22%),
+    linear-gradient(150deg,#16202F,#0E1521)}
+.mapstrip .pin{position:absolute;width:9px;height:9px;border-radius:99px;box-shadow:0 0 0 3px #0A0E1799}
+.mapstrip .lbl{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--text);
+  background:#0A0E17B8;padding:5px 9px;border-radius:8px;backdrop-filter:blur(6px)}
+
+.nav{position:absolute;left:0;right:0;bottom:0;height:74px;background:#0C1220F2;border-top:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-around;backdrop-filter:blur(14px)}
+.nav div{font-size:10px;color:var(--faint);text-align:center;line-height:1.7}
+.nav div.on{color:var(--accent)}
+.nav b{display:block;font-size:17px;font-weight:400}
+</style>
+</head>
+<body>
+<div class="phone"><div class="wrap">
+
+  <div class="eyebrow">Colectivo Vendaval · IAJU</div>
+  <h1>Cartografía cultural<br><em>de Aguascalientes</em></h1>
+  <div class="sync"><span class="dot"></span> Sin conexión · 27 espacios guardados</div>
+
+  <div class="row">
+    <div class="search">⌕ &nbsp;Busca nombre, calle o municipio</div>
+    <div class="iconbtn">＋</div>
+  </div>
+
+  <div class="chips">
+    <button class="chip on">Todos</button>
+    <button class="chip">Casas</button>
+    <button class="chip">Centros</button>
+    <button class="chip">Galerías</button>
+    <button class="chip">Teatros</button>
+  </div>
+  <div class="chips">
+    <button class="chip sheet">Municipio ⌄</button>
+    <button class="chip sheet">Ordenar ⌄</button>
+  </div>
+
+  <div class="count"><span>27 espacios · 7 municipios</span><span style="color:var(--accent)">Ver mapa →</span></div>
+
+  <div class="mapstrip">
+    <span class="pin" style="left:26%;top:44%;background:var(--centro)"></span>
+    <span class="pin" style="left:61%;top:33%;background:var(--casa)"></span>
+    <span class="pin" style="left:44%;top:68%;background:var(--teatro)"></span>
+    <span class="pin" style="left:73%;top:57%;background:var(--galeria)"></span>
+    <span class="pin" style="left:35%;top:24%;background:var(--com)"></span>
+    <span class="lbl">27 espacios en el mapa</span>
+  </div>
+
+  <div class="card">
+    <div class="cover" style="background:linear-gradient(140deg,#5B8DEF,#3E6BC4)"><span>A</span></div>
+    <div class="meta">
+      <div class="name">Aquelarre, espacio cultural</div>
+      <div class="sub"><b>Aguascalientes</b> · 1.2 km</div>
+      <div class="tag"><i style="background:var(--centro)"></i> Centro Cultural</div>
+    </div>
+    <div class="star">☆</div>
+  </div>
+
+  <div class="card">
+    <div class="cover" style="background:linear-gradient(140deg,#E8629B,#C2427B)"><span>T</span></div>
+    <div class="meta">
+      <div class="name">Teatro Morelos</div>
+      <div class="sub"><b>Aguascalientes</b> · 0.8 km</div>
+      <div class="tag"><i style="background:var(--teatro)"></i> Teatro</div>
+    </div>
+    <div class="star" style="color:#E8A93C">★</div>
+  </div>
+
+  <div class="card">
+    <div class="cover" style="background:linear-gradient(140deg,#A971F0,#7F4BC9)"><span>O</span></div>
+    <div class="meta">
+      <div class="name">Galería de Arte “El Obraje”</div>
+      <div class="sub"><b>Aguascalientes</b> · 1.6 km</div>
+      <div class="tag"><i style="background:var(--galeria)"></i> Galería de Arte</div>
+    </div>
+    <div class="star">☆</div>
+  </div>
+
+  <div class="card">
+    <div class="cover" style="background:linear-gradient(140deg,#E8853C,#C1601F)"><span>C</span></div>
+    <div class="meta">
+      <div class="name">Casa de Cultura de Calvillo</div>
+      <div class="sub"><b>Calvillo</b> · 42 km</div>
+      <div class="tag"><i style="background:var(--casa)"></i> Casa de Cultura</div>
+    </div>
+    <div class="star">☆</div>
+  </div>
+
+</div>
+<div class="nav">
+  <div class="on"><b>▤</b>Directorio</div>
+  <div><b>◈</b>Mapa</div>
+  <div><b>☆</b>Favoritos</div>
+  <div><b>▥</b>Cobertura</div>
+  <div><b>⚙</b>Ajustes</div>
+</div></div>
+</body>
+</html>
